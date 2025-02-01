@@ -329,9 +329,9 @@ export function getFetch(pageState: PageState): typeof fetch {
         [...manifest.assignedMap.values()].includes(url)
       );
       if (manifest == null) {
-        console.warn(
+        console.log(
           "[TTV LOL PRO] No associated Usher manifest found for Video Weaver request."
-        );
+        ); // This can happen just after a ClearStats message if Twitch decides to send another Video Weaver request.
       }
       if (videoWeaverUrlsToNotProxy.has(url)) {
         if (IS_DEVELOPMENT) {
