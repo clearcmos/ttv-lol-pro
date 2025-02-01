@@ -270,6 +270,7 @@ export function getFetch(pageState: PageState): typeof fetch {
       const channelName = findChannelFromUsherUrl(url);
       if (
         pageState.state?.whitelistChannelSubscriptions &&
+        isLivestream &&
         channelName != null
       ) {
         const wasSubscribed = wasChannelSubscriber(channelName, pageState);
