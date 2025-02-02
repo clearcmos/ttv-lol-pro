@@ -650,9 +650,10 @@ function isChannelWhitelisted(
   pageState: PageState
 ): boolean {
   if (!channelName) return false;
+  const channelNameLower = channelName.toLowerCase();
   return (
     pageState.state?.whitelistedChannels.some(
-      c => c.toLowerCase() === channelName.toLowerCase()
+      c => c.toLowerCase() === channelNameLower
     ) ?? false
   );
 }
@@ -662,9 +663,10 @@ function wasChannelSubscriber(
   pageState: PageState
 ): boolean {
   if (!channelName) return false;
+  const channelNameLower = channelName.toLowerCase();
   return (
     pageState.state?.activeChannelSubscriptions.some(
-      c => c.toLowerCase() === channelName.toLowerCase()
+      c => c.toLowerCase() === channelNameLower
     ) ?? false
   );
 }

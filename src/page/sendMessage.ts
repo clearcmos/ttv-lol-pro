@@ -32,9 +32,7 @@ async function sendMessageAndWaitForResponse(
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     if (!recipient) {
-      console.error("[TTV LOL PRO] Message recipient is undefined.");
-      resolve(undefined);
-      return;
+      return reject(new Error("Message recipient is undefined."));
     }
 
     const listener = (event: MessageEvent) => {
