@@ -44,14 +44,28 @@ export function getFetch(pageState: PageState): typeof fetch {
               cachedPlaybackTokenRequestHeaders,
               cachedPlaybackTokenRequestBody
             );
-          const message = {
+          pageState.sendMessageToWorkerScripts(pageState.twitchWorkers, {
             type: MessageType.NewPlaybackAccessTokenResponse,
             newPlaybackAccessToken,
-          };
-          pageState.sendMessageToWorkerScripts(
-            pageState.twitchWorkers,
-            message
-          );
+          });
+          break;
+        case MessageType.ChannelSubStatusQuery:
+          try {
+            const req = getSubStatusRequest(message.channelName);
+            const res = await NATIVE_FETCH(req);
+            const body = await res.json();
+            const isSubscribed =
+              body.data.user.self.subscriptionBenefit != null;
+            pageState.sendMessageToWorkerScripts(pageState.twitchWorkers, {
+              type: MessageType.ChannelSubStatusQueryResponse,
+              isSubscribed,
+            });
+          } catch (error) {
+            pageState.sendMessageToWorkerScripts(pageState.twitchWorkers, {
+              type: MessageType.ChannelSubStatusQueryResponse,
+              error: `${error}`,
+            });
+          }
           break;
       }
     });
@@ -199,7 +213,7 @@ export function getFetch(pageState: PageState): typeof fetch {
           pageState.state?.anonymousMode === true ||
           (shouldFlagRequest && willFailIntegrityCheckIfProxied);
         if (shouldOverrideRequest) {
-          const newRequest = await getDefaultPlaybackAccessTokenRequest(
+          const newRequest = getDefaultPlaybackAccessTokenRequest(
             channelName,
             pageState.state?.anonymousMode === true
           );
@@ -273,31 +287,8 @@ export function getFetch(pageState: PageState): typeof fetch {
         isLivestream &&
         channelName != null
       ) {
-        const wasSubscribed = wasChannelSubscriber(channelName, pageState);
-        const isSubscribed = url.includes(
-          encodeURIComponent('"subscriber":true')
-        );
-        const hasSubStatusChanged =
-          (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
-        if (hasSubStatusChanged) {
-          try {
-            const response =
-              await pageState.sendMessageToContentScriptAndWaitForResponse(
-                pageState.scope,
-                {
-                  type: MessageType.ChannelSubStatusChange,
-                  channelName,
-                  wasSubscribed,
-                  isSubscribed,
-                },
-                MessageType.ChannelSubStatusChangeResponse
-              );
-            if (typeof response.whitelistedChannels === "object") {
-              pageState.state.whitelistedChannels =
-                response.whitelistedChannels;
-            }
-          } catch {}
-        }
+        // TODO: Maybe also check before PlaybackAccessToken requests? (But then that's a LOT of overhead.)
+        await checkChannelSubStatus(channelName, pageState);
       }
       const isWhitelisted = isChannelWhitelisted(channelName, pageState);
       if (!isLivestream || isFrontpage || isWhitelisted) {
@@ -726,6 +717,89 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function getSubStatusRequest(channelName: string): Request {
+  const cookieMap = new Map<string, string>(
+    document.cookie
+      .split(";")
+      .map(cookie => cookie.trim().split("="))
+      .map(([name, value]) => [name, decodeURIComponent(value)])
+  );
+  const headersMap = new Map<string, string>([
+    [
+      "Authorization",
+      cookieMap.has("auth-token")
+        ? `OAuth ${cookieMap.get("auth-token")}`
+        : "undefined",
+    ],
+    ["Client-ID", "kimne78kx3ncx6brgo4mv6wki5h1ko"],
+    ["Device-ID", generateRandomString(32)],
+  ]);
+
+  return new Request("https://gql.twitch.tv/gql", {
+    method: "POST",
+    headers: Object.fromEntries(headersMap),
+    body: JSON.stringify({
+      operationName: "ChannelPage_SubscribeButton_User",
+      variables: {
+        login: channelName,
+      },
+      extensions: {
+        persistedQuery: {
+          version: 1,
+          sha256Hash:
+            "a1da17caf3041632c3f9b4069dfc8d93ff10b5b5023307ec0a694a9d8eae991e",
+        },
+      },
+    }),
+  });
+}
+
+async function checkChannelSubStatus(
+  channelName: string,
+  pageState: PageState
+) {
+  try {
+    const channelSubStatus =
+      await pageState.sendMessageToPageScriptAndWaitForResponse(
+        pageState.scope,
+        {
+          type: MessageType.ChannelSubStatusQuery,
+          channelName,
+        },
+        MessageType.ChannelSubStatusQueryResponse
+      );
+    if (!channelSubStatus || channelSubStatus.error) {
+      throw new Error(
+        `Error querying channel sub status: ${channelSubStatus.error}`
+      );
+    }
+    const wasSubscribed = wasChannelSubscriber(channelName, pageState);
+    const isSubscribed = channelSubStatus.isSubscribed;
+    const hasSubStatusChanged =
+      (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
+    if (hasSubStatusChanged) {
+      try {
+        const response =
+          await pageState.sendMessageToContentScriptAndWaitForResponse(
+            pageState.scope,
+            {
+              type: MessageType.ChannelSubStatusChange,
+              channelName,
+              wasSubscribed,
+              isSubscribed,
+            },
+            MessageType.ChannelSubStatusChangeResponse
+          );
+        if (typeof response.whitelistedChannels === "object") {
+          pageState.state!.whitelistedChannels = response.whitelistedChannels;
+        }
+      } catch {}
+    }
+  } catch (error) {
+    console.error("[TTV LOL PRO] Failed to check channel sub status:", error);
+  }
+}
+
 //#region Video Weaver URL replacement
 
 /**
@@ -734,10 +808,10 @@ async function sleep(ms: number): Promise<void> {
  * @param anonymousMode
  * @returns
  */
-async function getDefaultPlaybackAccessTokenRequest(
+function getDefaultPlaybackAccessTokenRequest(
   channel: string | null = null,
   anonymousMode: boolean = false
-): Promise<Request | null> {
+): Request | null {
   // We can use `location.href` because we're in the page script.
   const channelName = channel ?? findChannelFromTwitchTvUrl(location.href);
   if (!channelName) return null;
@@ -793,7 +867,7 @@ async function fetchReplacementPlaybackAccessToken(
 ): Promise<PlaybackAccessToken | null> {
   // Not using the cached request because we'd need to check if integrity requests are proxied.
   try {
-    let request = await getDefaultPlaybackAccessTokenRequest(
+    let request = getDefaultPlaybackAccessTokenRequest(
       null,
       pageState.state?.anonymousMode === true
     );

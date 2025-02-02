@@ -79,6 +79,8 @@ export const enum MessageType {
   EnableFullMode = "TLP_EnableFullMode",
   EnableFullModeResponse = "TLP_EnableFullModeResponse",
   DisableFullMode = "TLP_DisableFullMode",
+  ChannelSubStatusQuery = "TLP_ChannelSubStatusQuery",
+  ChannelSubStatusQueryResponse = "TLP_ChannelSubStatusQueryResponse",
   ChannelSubStatusChange = "TLP_ChannelSubStatusChange",
   ChannelSubStatusChangeResponse = "TLP_ChannelSubStatusChangeResponse",
   UsherResponse = "TLP_UsherResponse",
