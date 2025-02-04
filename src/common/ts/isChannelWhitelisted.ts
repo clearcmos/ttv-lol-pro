@@ -6,6 +6,6 @@ export default function isChannelWhitelisted(
   if (!channelName) return false;
   const channelNameLower = channelName.toLowerCase();
   return store.state.whitelistedChannels.some(
-    c => c.toLowerCase() === channelNameLower
+    channel => channel.toLowerCase() === channelNameLower
   );
 }

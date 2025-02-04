@@ -682,7 +682,7 @@ function isChannelWhitelisted(
   const channelNameLower = channelName.toLowerCase();
   return (
     pageState.state?.whitelistedChannels.some(
-      c => c.toLowerCase() === channelNameLower
+      channel => channel.toLowerCase() === channelNameLower
     ) ?? false
   );
 }
@@ -695,7 +695,7 @@ function wasChannelSubscriber(
   const channelNameLower = channelName.toLowerCase();
   return (
     pageState.state?.activeChannelSubscriptions.some(
-      c => c.toLowerCase() === channelNameLower
+      channel => channel.toLowerCase() === channelNameLower
     ) ?? false
   );
 }
