@@ -71,9 +71,11 @@ export function getFetch(pageState: PageState): typeof fetch {
         console.log("[TTV LOL PRO] Cleared stats (getFetch).");
         if (!message.channelName) break;
         const channelNameLower = message.channelName.toLowerCase();
-        usherManifests = usherManifests.filter(
-          manifest => manifest.channelName !== channelNameLower
-        );
+        for (let i = 0; i < usherManifests.length; i++) {
+          if (usherManifests[i].channelName === channelNameLower) {
+            usherManifests[i].deleted = true;
+          }
+        }
         if (cachedPlaybackTokenRequestBody?.includes(channelNameLower)) {
           cachedPlaybackTokenRequestHeaders = null;
           cachedPlaybackTokenRequestBody = null;
@@ -294,9 +296,9 @@ export function getFetch(pageState: PageState): typeof fetch {
         [...manifest.assignedMap.values()].includes(url)
       );
       if (manifest == null) {
-        console.log(
+        console.warn(
           "[TTV LOL PRO] No associated Usher manifest found for Video Weaver request."
-        ); // This can happen just after a ClearStats message if Twitch decides to send another Video Weaver request.
+        );
       }
       if (videoWeaverUrlsToNotProxy.has(url)) {
         if (IS_DEVELOPMENT) {
@@ -442,6 +444,7 @@ export function getFetch(pageState: PageState): typeof fetch {
         }
         const isLivestream = !/^\d+$/.test(channelName); // VODs have numeric IDs.
         if (!isLivestream) break graphqlRes;
+        await waitForStore(pageState);
         const wasSubscribed = wasChannelSubscriber(channelName, pageState);
         const hasSubStatusChanged =
           (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
@@ -465,6 +468,7 @@ export function getFetch(pageState: PageState): typeof fetch {
       response.status < 400
     ) {
       //#region Usher responses.
+      // No need to wait for store here because all Usher requests have already waited for it.
       const isLivestream = !url.includes("/vod/");
       const isFrontpage = url.includes(
         encodeURIComponent('"player_type":"frontpage"')
@@ -474,6 +478,7 @@ export function getFetch(pageState: PageState): typeof fetch {
       if (!isLivestream) break usherRes;
 
       responseBody ??= await readResponseBody();
+      usherManifests = usherManifests.filter(manifest => !manifest.deleted); // Clean up deleted manifests.
       const assignedMap = parseUsherManifest(responseBody);
       if (assignedMap != null) {
         console.debug(
@@ -486,9 +491,12 @@ export function getFetch(pageState: PageState): typeof fetch {
           replacementMap: null,
           consecutiveMidrollResponses: 0,
           consecutiveMidrollCooldown: 0,
+          deleted: false,
         });
       } else {
-        console.debug("[TTV LOL PRO] Received Usher response.");
+        console.error(
+          "[TTV LOL PRO] Received Usher response but failed to parse it."
+        );
       }
       // Send Video Weaver URLs to content script.
       const videoWeaverUrls = [...(assignedMap?.values() ?? [])];
@@ -534,14 +542,11 @@ export function getFetch(pageState: PageState): typeof fetch {
         console.log("[TTV LOL PRO] Midroll ad detected.");
         manifest.consecutiveMidrollResponses += 1;
         manifest.consecutiveMidrollCooldown = 15;
-        const isWhitelisted = isChannelWhitelisted(
-          manifest.channelName,
-          pageState
-        );
+        await waitForStore(pageState);
         const shouldUpdateReplacementMap =
           pageState.state?.optimizedProxiesEnabled === true &&
           manifest.consecutiveMidrollResponses <= 2 && // Avoid infinite loop.
-          !isWhitelisted;
+          !videoWeaverUrlsToNotProxy.has(url);
         if (shouldUpdateReplacementMap) {
           const success = await updateVideoWeaverReplacementMap(
             pageState,
@@ -744,10 +749,6 @@ function flagRequestCleanup(
 
 function cancelRequest(): never {
   throw new Error();
-}
-
-async function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 //#region Video Weaver URL replacement

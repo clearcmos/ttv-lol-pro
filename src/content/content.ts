@@ -47,10 +47,13 @@ function onStoreLoad() {
 
 /**
  * Clear stats for stream on page load/reload.
+ * @param channelName
+ * @param delayMs
  * @returns
  */
-function clearStats(channelName: string | null) {
+async function clearStats(channelName: string | null, delayMs?: number) {
   if (!channelName) return;
+  if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
   const channelNameLower = channelName.toLowerCase();
   if (store.state.streamStatuses.hasOwnProperty(channelNameLower)) {
     delete store.state.streamStatuses[channelNameLower];
@@ -102,7 +105,7 @@ function onPageMessage(event: MessageEvent) {
     return;
   }
 
-  const { message, responseType, responseMessageType } = event.data;
+  const { message } = event.data;
   if (!message) return;
 
   if (message.type === MessageType.GetStoreState) {
@@ -150,6 +153,7 @@ function onPageMessage(event: MessageEvent) {
       isSubscribed,
       isWhitelisted,
     });
+    const currentChannelName = findChannelFromTwitchTvUrl(location.href);
     if (store.state.whitelistChannelSubscriptions && channelName != null) {
       if (!wasSubscribed && isSubscribed) {
         store.state.activeChannelSubscriptions.push(channelName);
@@ -158,7 +162,9 @@ function onPageMessage(event: MessageEvent) {
           console.log(`[TTV LOL PRO] Adding '${channelName}' to whitelist.`);
           store.state.whitelistedChannels.push(channelName);
         }
-        location.reload();
+        if (channelName === currentChannelName) {
+          location.reload();
+        }
       } else if (wasSubscribed && !isSubscribed) {
         store.state.activeChannelSubscriptions =
           store.state.activeChannelSubscriptions.filter(
@@ -174,7 +180,9 @@ function onPageMessage(event: MessageEvent) {
               c => c.toLowerCase() !== channelName.toLowerCase()
             );
         }
-        location.reload();
+        if (channelName === currentChannelName) {
+          location.reload();
+        }
       }
     }
   }
@@ -201,6 +209,6 @@ function onPageMessage(event: MessageEvent) {
   }
   // ---
   else if (message.type === MessageType.ClearStats) {
-    clearStats(message.channelName);
+    clearStats(message.channelName, 2000);
   }
 }

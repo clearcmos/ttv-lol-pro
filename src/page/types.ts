@@ -36,6 +36,7 @@ export interface UsherManifest {
   replacementMap: Map<string, string> | null; // Same as above, but with new URLs.
   consecutiveMidrollResponses: number; // Used to avoid infinite loops.
   consecutiveMidrollCooldown: number; // Used to avoid infinite loops.
+  deleted: boolean; // Deletion flag for cleanup.
 }
 
 export interface PlaybackAccessToken {
