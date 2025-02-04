@@ -158,6 +158,7 @@ function onPageMessage(event: MessageEvent) {
           console.log(`[TTV LOL PRO] Adding '${channelName}' to whitelist.`);
           store.state.whitelistedChannels.push(channelName);
         }
+        location.reload();
       } else if (wasSubscribed && !isSubscribed) {
         store.state.activeChannelSubscriptions =
           store.state.activeChannelSubscriptions.filter(
@@ -173,17 +174,9 @@ function onPageMessage(event: MessageEvent) {
               c => c.toLowerCase() !== channelName.toLowerCase()
             );
         }
+        location.reload();
       }
     }
-    window.postMessage({
-      type: responseType,
-      message: {
-        type: responseMessageType,
-        whitelistedChannels: JSON.parse(
-          JSON.stringify(store.state.whitelistedChannels)
-        ),
-      },
-    });
   }
   // ---
   else if (message.type === MessageType.UsherResponse) {

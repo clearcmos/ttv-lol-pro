@@ -49,24 +49,6 @@ export function getFetch(pageState: PageState): typeof fetch {
             newPlaybackAccessToken,
           });
           break;
-        case MessageType.ChannelSubStatusQuery:
-          try {
-            const req = getSubStatusRequest(message.channelName);
-            const res = await NATIVE_FETCH(req);
-            const body = await res.json();
-            const isSubscribed =
-              body.data.user.self.subscriptionBenefit != null;
-            pageState.sendMessageToWorkerScripts(pageState.twitchWorkers, {
-              type: MessageType.ChannelSubStatusQueryResponse,
-              isSubscribed,
-            });
-          } catch (error) {
-            pageState.sendMessageToWorkerScripts(pageState.twitchWorkers, {
-              type: MessageType.ChannelSubStatusQueryResponse,
-              error: `${error}`,
-            });
-          }
-          break;
       }
     });
   }
@@ -282,14 +264,6 @@ export function getFetch(pageState: PageState): typeof fetch {
         encodeURIComponent('"player_type":"frontpage"')
       );
       const channelName = findChannelFromUsherUrl(url);
-      if (
-        pageState.state?.whitelistChannelSubscriptions &&
-        isLivestream &&
-        channelName != null
-      ) {
-        // TODO: Maybe also check before PlaybackAccessToken requests? (But then that's a LOT of overhead.)
-        await checkChannelSubStatus(channelName, pageState);
-      }
       const isWhitelisted = isChannelWhitelisted(channelName, pageState);
       if (!isLivestream || isFrontpage || isWhitelisted) {
         console.log(
@@ -424,6 +398,65 @@ export function getFetch(pageState: PageState): typeof fetch {
     };
 
     //#region Responses
+
+    graphqlRes: if (
+      host != null &&
+      twitchGqlHostRegex.test(host) &&
+      response.status < 400
+    ) {
+      responseBody ??= await readResponseBody();
+      // Preliminary check to avoid parsing the response body if possible.
+      if (
+        !responseBody.includes('"UserSelfConnection"') ||
+        !responseBody.includes('"subscriptionBenefit"') ||
+        !responseBody.includes('"login"')
+      ) {
+        break graphqlRes;
+      }
+      try {
+        let channelName: string;
+        let isSubscribed: boolean;
+        const body = JSON.parse(responseBody);
+        if (Array.isArray(body)) {
+          const match = body.find(
+            (obj: any) =>
+              obj.data &&
+              obj.data.user &&
+              obj.data.user.login != null &&
+              obj.data.user.self &&
+              "subscriptionBenefit" in obj.data.user.self
+          );
+          if (match == null) break graphqlRes;
+          channelName = match.data.user.login;
+          isSubscribed = match.data.user.self.subscriptionBenefit != null;
+        } else {
+          const isMatch =
+            body.data &&
+            body.data.user &&
+            body.data.user.login != null &&
+            body.data.user.self &&
+            "subscriptionBenefit" in body.data.user.self;
+          if (!isMatch) break graphqlRes;
+          channelName = body.data.user.login;
+          isSubscribed = body.data.user.self.subscriptionBenefit != null;
+        }
+        const isLivestream = !/^\d+$/.test(channelName); // VODs have numeric IDs.
+        if (!isLivestream) break graphqlRes;
+        const wasSubscribed = wasChannelSubscriber(channelName, pageState);
+        const hasSubStatusChanged =
+          (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
+        if (hasSubStatusChanged) {
+          pageState.sendMessageToContentScript({
+            type: MessageType.ChannelSubStatusChange,
+            channelName,
+            wasSubscribed,
+            isSubscribed,
+          });
+        }
+      } catch (error) {
+        console.error("[TTV LOL PRO] Failed to parse GraphQL response:", error);
+      }
+    }
 
     // Twitch Usher responses.
     usherRes: if (
@@ -715,89 +748,6 @@ function cancelRequest(): never {
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function getSubStatusRequest(channelName: string): Request {
-  const cookieMap = new Map<string, string>(
-    document.cookie
-      .split(";")
-      .map(cookie => cookie.trim().split("="))
-      .map(([name, value]) => [name, decodeURIComponent(value)])
-  );
-  const headersMap = new Map<string, string>([
-    [
-      "Authorization",
-      cookieMap.has("auth-token")
-        ? `OAuth ${cookieMap.get("auth-token")}`
-        : "undefined",
-    ],
-    ["Client-ID", "kimne78kx3ncx6brgo4mv6wki5h1ko"],
-    ["Device-ID", generateRandomString(32)],
-  ]);
-
-  return new Request("https://gql.twitch.tv/gql", {
-    method: "POST",
-    headers: Object.fromEntries(headersMap),
-    body: JSON.stringify({
-      operationName: "ChannelPage_SubscribeButton_User",
-      variables: {
-        login: channelName,
-      },
-      extensions: {
-        persistedQuery: {
-          version: 1,
-          sha256Hash:
-            "a1da17caf3041632c3f9b4069dfc8d93ff10b5b5023307ec0a694a9d8eae991e",
-        },
-      },
-    }),
-  });
-}
-
-async function checkChannelSubStatus(
-  channelName: string,
-  pageState: PageState
-) {
-  try {
-    const channelSubStatus =
-      await pageState.sendMessageToPageScriptAndWaitForResponse(
-        pageState.scope,
-        {
-          type: MessageType.ChannelSubStatusQuery,
-          channelName,
-        },
-        MessageType.ChannelSubStatusQueryResponse
-      );
-    if (!channelSubStatus || channelSubStatus.error) {
-      throw new Error(
-        `Error querying channel sub status: ${channelSubStatus.error}`
-      );
-    }
-    const wasSubscribed = wasChannelSubscriber(channelName, pageState);
-    const isSubscribed = channelSubStatus.isSubscribed;
-    const hasSubStatusChanged =
-      (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
-    if (hasSubStatusChanged) {
-      try {
-        const response =
-          await pageState.sendMessageToContentScriptAndWaitForResponse(
-            pageState.scope,
-            {
-              type: MessageType.ChannelSubStatusChange,
-              channelName,
-              wasSubscribed,
-              isSubscribed,
-            },
-            MessageType.ChannelSubStatusChangeResponse
-          );
-        if (typeof response.whitelistedChannels === "object") {
-          pageState.state!.whitelistedChannels = response.whitelistedChannels;
-        }
-      } catch {}
-    }
-  } catch (error) {
-    console.error("[TTV LOL PRO] Failed to check channel sub status:", error);
-  }
 }
 
 //#region Video Weaver URL replacement
