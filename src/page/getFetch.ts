@@ -72,7 +72,9 @@ export function getFetch(pageState: PageState): typeof fetch {
         if (!message.channelName) break;
         const channelNameLower = message.channelName.toLowerCase();
         for (let i = 0; i < usherManifests.length; i++) {
-          if (usherManifests[i].channelName === channelNameLower) {
+          if (
+            usherManifests[i].channelName?.toLowerCase() === channelNameLower
+          ) {
             usherManifests[i].deleted = true;
           }
         }
