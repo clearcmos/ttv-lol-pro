@@ -10,6 +10,7 @@ export interface State {
   adLog: AdLogEntry[];
   adLogEnabled: boolean;
   adLogLastSent: number;
+  allowOtherProxyProtocols: boolean;
   anonymousMode: boolean;
   chromiumProxyActive: boolean;
   dnsResponses: DnsResponse[];

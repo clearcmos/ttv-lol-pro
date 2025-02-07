@@ -1,36 +1,24 @@
 import { Address6 } from "ip-address";
-import type { ProxyInfo } from "../../types";
+import type { ProxyInfo, ProxyType } from "../../types";
 
-export const proxySchemes = {
-  direct: "DIRECT",
-  http: "PROXY",
-  https: "HTTPS",
-  socks: "SOCKS",
-  socks4: "SOCKS4",
-  socks5: "SOCKS5",
-  quic: "QUIC",
-} as const;
-
-type Protocol = keyof typeof proxySchemes;
-
-const defaultPorts: Partial<{
-  [key in keyof typeof proxySchemes]: number;
-}> = {
+const DEFAULT_PORTS: Readonly<Record<ProxyType, number>> = Object.freeze({
+  direct: 0,
   http: 80,
   https: 443,
   socks: 1080,
   socks4: 1080,
-  socks5: 1080,
-  quic: 443,
-};
+});
 
-export function getProxyInfoFromUrl(url: string) {
-  let protocol = "";
+export function getProxyInfoFromUrl(
+  url: string
+): ProxyInfo & { host: string; port: number } {
+  let type: ProxyType | undefined = undefined;
   if (url.includes("://")) {
-    const [_protocol, urlWithoutProtocol] = url.split("://");
-    protocol = _protocol;
+    const [protocol, urlWithoutProtocol] = url.split("://", 2);
+    type = protocol as ProxyType;
     url = urlWithoutProtocol;
   }
+
   const lastIndexOfAt = url.lastIndexOf("@");
   const hostname = url.substring(lastIndexOfAt + 1, url.length);
   const lastIndexOfColon = getLastIndexOfColon(hostname);
@@ -39,9 +27,7 @@ export function getProxyInfoFromUrl(url: string) {
   let port: number | undefined = undefined;
   if (lastIndexOfColon === -1) {
     host = hostname;
-    if (!protocol) {
-      port = 3128; // Default port
-    }
+    port = !type ? 3128 : DEFAULT_PORTS[type]; // Default port
   } else {
     host = hostname.substring(0, lastIndexOfColon);
     port = Number(hostname.substring(lastIndexOfColon + 1, hostname.length));
@@ -59,11 +45,8 @@ export function getProxyInfoFromUrl(url: string) {
     password = credentials.substring(indexOfColon + 1, credentials.length);
   }
 
-  port = port ? port : defaultPorts[protocol as Protocol];
-
   return {
-    type: proxySchemes[protocol as Protocol] ?? "PROXY",
-    protocol,
+    type: type ?? "http",
     host,
     port,
     username,

@@ -1,5 +1,5 @@
 import store from "../../store";
-import { ProxyRequestType } from "../../types";
+import { ProxyRequestType, ProxyType } from "../../types";
 import isRequestTypeProxied from "./isRequestTypeProxied";
 import { getProxyInfoFromUrl, getUrlFromProxyInfo } from "./proxyInfo";
 import {
@@ -10,6 +10,14 @@ import {
   videoWeaverHostRegex,
 } from "./regexes";
 import updateDnsResponses from "./updateDnsResponses";
+
+const PROXY_TYPE_MAP: Readonly<Record<ProxyType, string>> = Object.freeze({
+  direct: "DIRECT",
+  http: "PROXY",
+  https: "HTTPS",
+  socks4: "SOCKS4",
+  socks: "SOCKS5",
+});
 
 export function updateProxySettings(requestFilter?: ProxyRequestType[]) {
   const { optimizedProxiesEnabled, passportLevel } = store.state;
@@ -92,7 +100,7 @@ function getProxyInfoStringFromUrls(urls: string[]): string {
   return [
     ...urls.map(url => {
       const proxyInfo = getProxyInfoFromUrl(url);
-      return `${proxyInfo.type} ${getUrlFromProxyInfo({
+      return `${PROXY_TYPE_MAP[proxyInfo.type]} ${getUrlFromProxyInfo({
         ...proxyInfo,
         // Don't include username/password in PAC script.
         username: undefined,

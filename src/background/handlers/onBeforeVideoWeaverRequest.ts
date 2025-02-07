@@ -38,7 +38,7 @@ export default function onBeforeVideoWeaverRequest(
       textLower.includes("https://example.com") &&
       textLower.includes("https://help.twitch.tv/");
     const proxy =
-      details.proxyInfo && details.proxyInfo.type !== "DIRECT"
+      details.proxyInfo && details.proxyInfo.type !== "direct"
         ? getUrlFromProxyInfo(details.proxyInfo)
         : null;
 

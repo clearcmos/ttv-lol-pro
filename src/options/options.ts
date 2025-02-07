@@ -85,6 +85,9 @@ const optimizedProxiesListElement = $(
 ) as HTMLOListElement;
 const normalProxiesInputElement = $("#normal") as HTMLInputElement;
 const normalProxiesListElement = $("#normal-proxies-list") as HTMLOListElement;
+const otherProtocolsCheckboxElement = $(
+  "#other-protocols-checkbox"
+) as HTMLInputElement;
 // Ad log
 const adLogEnabledCheckboxElement = $(
   "#ad-log-enabled-checkbox"
@@ -219,6 +222,12 @@ function main() {
     hidePromptMarker: true,
     insertMode: "both",
   });
+  otherProtocolsCheckboxElement.checked = store.state.allowOtherProxyProtocols;
+  otherProtocolsCheckboxElement.addEventListener("change", () => {
+    store.state.allowOtherProxyProtocols =
+      otherProtocolsCheckboxElement.checked;
+    location.reload();
+  });
   // Ad log
   adLogEnabledCheckboxElement.checked = store.state.adLogEnabled;
   adLogEnabledCheckboxElement.addEventListener("change", () => {
@@ -336,16 +345,18 @@ function isOptimizedProxyUrlAllowed(url: string): AllowedResult {
     return [false, "TTV LOL PRO v1 proxies are not compatible"];
   }
 
-  const proxyInfo = getProxyInfoFromUrl(url);
-  if (proxyInfo.host.includes("/")) {
-    return [false, "Proxy URLs must not contain a path (e.g. '/path')"];
+  if (url.includes("://")) {
+    const [protocol, urlWithoutProtocol] = url.split("://", 2);
+    if (!store.state.allowOtherProxyProtocols) {
+      return [false, "Proxy URLs must not contain a protocol (e.g. 'http://')"];
+    } else if (!["http", "https", "socks", "socks4"].includes(protocol)) {
+      return [false, `'${protocol}' is not a supported protocol`];
+    }
+    url = urlWithoutProtocol;
   }
 
-  try {
-    const host = url.substring(url.lastIndexOf("@") + 1, url.length);
-    new URL(`http://${host}`); // Throws if the host is invalid.
-  } catch {
-    return [false, `'${url}' is not a valid proxy URL`];
+  if (url.includes("/")) {
+    return [false, "Proxy URLs must not contain a path (e.g. '/path')"];
   }
 
   try {

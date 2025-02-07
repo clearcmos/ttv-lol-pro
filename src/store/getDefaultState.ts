@@ -7,6 +7,7 @@ export default function getDefaultState() {
     adLog: [],
     adLogEnabled: true,
     adLogLastSent: 0,
+    allowOtherProxyProtocols: false,
     anonymousMode: true,
     chromiumProxyActive: false,
     dnsResponses: [],

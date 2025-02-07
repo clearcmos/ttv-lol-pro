@@ -3,19 +3,11 @@ export type KeyOfType<T, V> = keyof {
   [P in keyof T as T[P] extends V ? P : never]: any;
 };
 
-// From https://chromium.googlesource.com/chromium/src/+/HEAD/net/docs/proxy.md#proxy-server-schemes
-export type ProxyScheme =
-  | "DIRECT"
-  | "PROXY"
-  | "HTTPS"
-  | "SOCKS"
-  | "SOCKS4"
-  | "SOCKS5"
-  | "QUIC";
+export type ProxyType = "direct" | "http" | "https" | "socks" | "socks4";
 
 // From https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/proxy/ProxyInfo
 export interface ProxyInfo {
-  type: ProxyScheme;
+  type: ProxyType;
   host?: string;
   port?: number;
   username?: string;
