@@ -145,43 +145,47 @@ function onPageMessage(event: MessageEvent) {
   }
   // ---
   else if (message.type === MessageType.ChannelSubStatusChange) {
-    const { channelName, wasSubscribed, isSubscribed } = message;
-    const isWhitelisted = isChannelWhitelisted(channelName);
+    const { channelNameLower, wasSubscribed, isSubscribed } = message;
+    const isWhitelisted = isChannelWhitelisted(channelNameLower);
     console.log("[TTV LOL PRO] ChannelSubStatusChange", {
-      channelName,
+      channelName: channelNameLower,
       wasSubscribed,
       isSubscribed,
       isWhitelisted,
     });
-    const currentChannelName = findChannelFromTwitchTvUrl(location.href);
-    if (store.state.whitelistChannelSubscriptions && channelName != null) {
+    const currentChannelNameLower = findChannelFromTwitchTvUrl(
+      location.href
+    )?.toLowerCase();
+    if (store.state.whitelistChannelSubscriptions && channelNameLower != null) {
       if (!wasSubscribed && isSubscribed) {
-        store.state.activeChannelSubscriptions.push(channelName);
+        store.state.activeChannelSubscriptions.push(channelNameLower);
         // Add to whitelist.
         if (!isWhitelisted) {
-          console.log(`[TTV LOL PRO] Adding '${channelName}' to whitelist.`);
-          store.state.whitelistedChannels.push(channelName);
-        }
-        if (channelName.toLowerCase() === currentChannelName?.toLowerCase()) {
-          location.reload();
+          console.log(
+            `[TTV LOL PRO] Adding '${channelNameLower}' to whitelist.`
+          );
+          store.state.whitelistedChannels.push(channelNameLower);
+          if (channelNameLower === currentChannelNameLower) {
+            location.reload();
+          }
         }
       } else if (wasSubscribed && !isSubscribed) {
         store.state.activeChannelSubscriptions =
           store.state.activeChannelSubscriptions.filter(
-            channel => channel.toLowerCase() !== channelName.toLowerCase()
+            channel => channel.toLowerCase() !== channelNameLower
           );
         // Remove from whitelist.
         if (isWhitelisted) {
           console.log(
-            `[TTV LOL PRO] Removing '${channelName}' from whitelist.`
+            `[TTV LOL PRO] Removing '${channelNameLower}' from whitelist.`
           );
           store.state.whitelistedChannels =
             store.state.whitelistedChannels.filter(
-              channel => channel.toLowerCase() !== channelName.toLowerCase()
+              channel => channel.toLowerCase() !== channelNameLower
             );
-        }
-        if (channelName.toLowerCase() === currentChannelName?.toLowerCase()) {
-          location.reload();
+          if (channelNameLower === currentChannelNameLower) {
+            location.reload();
+          }
         }
       }
     }

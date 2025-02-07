@@ -408,6 +408,8 @@ export function getFetch(pageState: PageState): typeof fetch {
       twitchGqlHostRegex.test(host) &&
       response.status < 400
     ) {
+      await waitForStore(pageState);
+      if (!pageState.state?.whitelistChannelSubscriptions) break graphqlRes;
       responseBody ??= await readResponseBody();
       // Preliminary check to avoid parsing the response body if possible.
       if (
@@ -444,16 +446,16 @@ export function getFetch(pageState: PageState): typeof fetch {
           channelName = body.data.user.login;
           isSubscribed = body.data.user.self.subscriptionBenefit != null;
         }
+        if (!channelName) break graphqlRes;
         const isLivestream = !/^\d+$/.test(channelName); // VODs have numeric IDs.
         if (!isLivestream) break graphqlRes;
-        await waitForStore(pageState);
         const wasSubscribed = wasChannelSubscriber(channelName, pageState);
         const hasSubStatusChanged =
           (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
         if (hasSubStatusChanged) {
           pageState.sendMessageToContentScript({
             type: MessageType.ChannelSubStatusChange,
-            channelName,
+            channelNameLower: channelName.toLowerCase(),
             wasSubscribed,
             isSubscribed,
           });
