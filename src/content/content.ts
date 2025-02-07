@@ -148,7 +148,7 @@ function onPageMessage(event: MessageEvent) {
     const { channelNameLower, wasSubscribed, isSubscribed } = message;
     const isWhitelisted = isChannelWhitelisted(channelNameLower);
     console.log("[TTV LOL PRO] ChannelSubStatusChange", {
-      channelName: channelNameLower,
+      channelNameLower,
       wasSubscribed,
       isSubscribed,
       isWhitelisted,
