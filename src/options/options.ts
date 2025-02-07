@@ -346,13 +346,13 @@ function isOptimizedProxyUrlAllowed(url: string): AllowedResult {
   }
 
   if (url.includes("://")) {
-    const [protocol, urlWithoutProtocol] = url.split("://", 2);
+    const [protocol] = url.split("://", 1);
     if (!store.state.allowOtherProxyProtocols) {
       return [false, "Proxy URLs must not contain a protocol (e.g. 'http://')"];
     } else if (!["http", "https", "socks", "socks4"].includes(protocol)) {
       return [false, `'${protocol}' is not a supported protocol`];
     }
-    url = urlWithoutProtocol;
+    url = url.substring(protocol.length + 3, url.length);
   }
 
   if (url.includes("/")) {

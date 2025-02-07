@@ -14,9 +14,9 @@ export function getProxyInfoFromUrl(
 ): ProxyInfo & { host: string; port: number } {
   let type: ProxyType | undefined = undefined;
   if (url.includes("://")) {
-    const [protocol, urlWithoutProtocol] = url.split("://", 2);
+    const [protocol] = url.split("://", 1);
     type = protocol as ProxyType;
-    url = urlWithoutProtocol;
+    url = url.substring(protocol.length + 3, url.length);
   }
 
   const lastIndexOfAt = url.lastIndexOf("@");

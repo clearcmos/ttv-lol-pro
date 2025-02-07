@@ -15,8 +15,8 @@ const PROXY_TYPE_MAP: Readonly<Record<ProxyType, string>> = Object.freeze({
   direct: "DIRECT",
   http: "PROXY",
   https: "HTTPS",
-  socks4: "SOCKS4",
   socks: "SOCKS5",
+  socks4: "SOCKS4",
 });
 
 export function updateProxySettings(requestFilter?: ProxyRequestType[]) {
