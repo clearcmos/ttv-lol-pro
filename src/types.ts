@@ -81,6 +81,7 @@ export const enum MessageType {
   EnableFullMode = "TLP_EnableFullMode",
   EnableFullModeResponse = "TLP_EnableFullModeResponse",
   DisableFullMode = "TLP_DisableFullMode",
+  DisableFullModeResponse = "TLP_DisableFullModeResponse",
   UsherResponse = "TLP_UsherResponse",
   NewPlaybackAccessToken = "TLP_NewPlaybackAccessToken",
   NewPlaybackAccessTokenResponse = "TLP_NewPlaybackAccessTokenResponse",
