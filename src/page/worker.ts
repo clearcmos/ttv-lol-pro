@@ -1,4 +1,5 @@
-import { MessageType } from "../types";
+import { Mutex } from "async-mutex";
+import { MessageType, ProxyRequestType } from "../types";
 import { getFetch } from "./getFetch";
 import {
   getSendMessageToContentScript,
@@ -35,6 +36,15 @@ const pageState: PageState = {
   isChromium: params.isChromium,
   scope: "worker",
   state: undefined,
+  requestTypeMutexes: {
+    [ProxyRequestType.Passport]: new Mutex(),
+    [ProxyRequestType.Usher]: new Mutex(),
+    [ProxyRequestType.VideoWeaver]: new Mutex(),
+    [ProxyRequestType.GraphQL]: new Mutex(),
+    [ProxyRequestType.GraphQLToken]: new Mutex(),
+    [ProxyRequestType.GraphQLIntegrity]: new Mutex(),
+    [ProxyRequestType.TwitchWebpage]: new Mutex(),
+  },
   twitchWorkers: [], // Always empty in workers.
   sendMessageToContentScript,
   sendMessageToContentScriptAndWaitForResponse,

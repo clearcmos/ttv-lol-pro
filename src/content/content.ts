@@ -86,17 +86,21 @@ function onStoreChange(changes: Record<string, Storage.StorageChange>) {
 }
 
 function onBackgroundMessage(message: any): undefined {
-  switch (message.type) {
-    case MessageType.EnableFullModeResponse:
-      window.postMessage({
-        type: MessageType.PageScriptMessage,
-        message,
-      });
-      window.postMessage({
-        type: MessageType.WorkerScriptMessage,
-        message,
-      });
-      break;
+  if (!message || !message.type) return;
+
+  if (
+    message.type === MessageType.EnableFullModeResponse ||
+    message.type === MessageType.DisableFullModeResponse
+  ) {
+    // Forward the message to the page script and worker script(s).
+    window.postMessage({
+      type: MessageType.PageScriptMessage,
+      message,
+    });
+    window.postMessage({
+      type: MessageType.WorkerScriptMessage,
+      message,
+    });
   }
 }
 

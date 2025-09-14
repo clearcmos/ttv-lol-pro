@@ -54,7 +54,7 @@ export function getFetch(pageState: PageState): typeof fetch {
   }
 
   // Listen for ClearStats messages from the page script.
-  self.addEventListener("message", event => {
+  self.addEventListener("message", async event => {
     if (
       !event.data ||
       (event.data.type !== MessageType.PageScriptMessage &&
@@ -84,6 +84,19 @@ export function getFetch(pageState: PageState): typeof fetch {
         }
         if (cachedUsherRequestUrl?.includes(channelNameLower)) {
           cachedUsherRequestUrl = null;
+        }
+        break;
+      case MessageType.DisableFullModeResponse:
+        await waitForStore(pageState);
+        if (
+          pageState.isChromium &&
+          (pageState.state?.optimizedProxiesEnabled ?? true) &&
+          message.reason === "TIMEOUT"
+        ) {
+          const requestType = message.requestType as ProxyRequestType;
+          const mutex = pageState.requestTypeMutexes[requestType];
+          mutex.release();
+          console.debug(`[TTV LOL PRO] 🔓 RELEASE '${requestType}' (timeout)`);
         }
         break;
     }
@@ -399,13 +412,26 @@ export function getFetch(pageState: PageState): typeof fetch {
       ...init,
       headers: Object.fromEntries(headersMap),
     });
+    let response: Response;
     if (isFlaggedRequest) {
       await waitForStore(pageState);
-      request = await flagRequest(request, requestType!, pageState);
-    }
-    const response = await NATIVE_FETCH(request);
-    if (isFlaggedRequest) {
-      flagRequestCleanup(requestType!, pageState);
+      response = await flagRequestAndFetch(request, requestType!, pageState);
+    } else {
+      if (pageState.isChromium && requestType !== null) {
+        await waitForStore(pageState);
+        if (pageState.state?.optimizedProxiesEnabled ?? true) {
+          const mutex = pageState.requestTypeMutexes[requestType];
+          const isLocked = mutex.isLocked();
+          if (isLocked) {
+            console.debug(`[TTV LOL PRO] 🔒 WAIT '${requestType}' (${url})`);
+          }
+          await mutex.waitForUnlock();
+          if (isLocked) {
+            console.debug(`[TTV LOL PRO] 🔓 DONE '${requestType}' (${url})`);
+          }
+        }
+      }
+      response = await NATIVE_FETCH(request);
     }
 
     // Reading the response body can be expensive, so we only do it if we need to.
@@ -719,7 +745,7 @@ function wasChannelSubscriber(
   );
 }
 
-async function flagRequest(
+async function _flagRequest(
   request: Request,
   requestType: ProxyRequestType,
   pageState: PageState
@@ -752,17 +778,58 @@ async function flagRequest(
   }
 }
 
-function flagRequestCleanup(
+async function _flagRequestCleanup(
   requestType: ProxyRequestType,
   pageState: PageState
 ) {
-  if (pageState.isChromium) {
-    if (!pageState.state?.optimizedProxiesEnabled) return;
-    pageState.sendMessageToContentScript({
-      type: MessageType.DisableFullMode,
-      timestamp: Date.now(),
-      requestType,
+  if (!pageState.isChromium) return;
+  if (!pageState.state?.optimizedProxiesEnabled) return;
+  try {
+    await pageState.sendMessageToContentScriptAndWaitForResponse(
+      pageState.scope,
+      {
+        type: MessageType.DisableFullMode,
+        timestamp: Date.now(),
+        requestType,
+      },
+      MessageType.DisableFullModeResponse
+    );
+  } catch (error) {
+    console.error("[TTV LOL PRO] Failed to cleanup flagged request:", error);
+  }
+}
+
+async function flagRequestAndFetch(
+  request: Request,
+  requestType: ProxyRequestType,
+  pageState: PageState
+): Promise<Response> {
+  const doWork = async () => {
+    const flaggedRequest = await _flagRequest(request, requestType, pageState);
+    const response = await NATIVE_FETCH(flaggedRequest);
+    await _flagRequestCleanup(requestType, pageState);
+    return response;
+  };
+  if (pageState.isChromium && pageState.state?.optimizedProxiesEnabled) {
+    const mutex = pageState.requestTypeMutexes[requestType];
+    const isLocked = mutex.isLocked();
+    if (isLocked) {
+      console.debug(`[TTV LOL PRO] 🔒 WAIT '${requestType}' (${request.url})`);
+    }
+    let response!: Response;
+    await mutex.runExclusive(async () => {
+      console.debug(`[TTV LOL PRO] 🔒 LOCK '${requestType}' (${request.url})`);
+      response = await doWork();
+      console.debug(
+        `[TTV LOL PRO] 🔓 UN-LOCK '${requestType}' (${request.url})`
+      );
     });
+    if (isLocked) {
+      console.debug(`[TTV LOL PRO] 🔓 DONE '${requestType}' (${request.url})`);
+    }
+    return response;
+  } else {
+    return await doWork();
   }
 }
 
@@ -854,14 +921,9 @@ async function fetchReplacementPlaybackAccessToken(
           : null,
       }
     );
-    if (isFlaggedRequest) {
-      request = await flagRequest(request, ProxyRequestType.GraphQL, pageState);
-    }
-
-    const response = await NATIVE_FETCH(request);
-    if (isFlaggedRequest) {
-      flagRequestCleanup(ProxyRequestType.GraphQL, pageState);
-    }
+    const response = isFlaggedRequest
+      ? await flagRequestAndFetch(request, ProxyRequestType.GraphQL, pageState)
+      : await NATIVE_FETCH(request);
     const json = await response.json();
     const newPlaybackAccessToken = json?.data?.streamPlaybackAccessToken;
     if (newPlaybackAccessToken == null) return null;
@@ -922,14 +984,9 @@ async function fetchReplacementUsherManifest(
         ? pageState.state.customPassport
         : null,
     });
-    if (isFlaggedRequest) {
-      request = await flagRequest(request, ProxyRequestType.Usher, pageState);
-    }
-
-    const response = await NATIVE_FETCH(request);
-    if (isFlaggedRequest) {
-      flagRequestCleanup(ProxyRequestType.Usher, pageState);
-    }
+    const response = isFlaggedRequest
+      ? await flagRequestAndFetch(request, ProxyRequestType.Usher, pageState)
+      : await NATIVE_FETCH(request);
     if (response.status >= 400) return null;
     const text = await response.text();
     return text;

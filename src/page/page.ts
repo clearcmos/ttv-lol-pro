@@ -1,6 +1,7 @@
+import { Mutex } from "async-mutex";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
 import toAbsoluteUrl from "../common/ts/toAbsoluteUrl";
-import { MessageType } from "../types";
+import { MessageType, ProxyRequestType } from "../types";
 import { getFetch } from "./getFetch";
 import {
   getSendMessageToContentScript,
@@ -30,6 +31,15 @@ const pageState: PageState = {
   isChromium: params.isChromium,
   scope: "page",
   state: undefined,
+  requestTypeMutexes: {
+    [ProxyRequestType.Passport]: new Mutex(),
+    [ProxyRequestType.Usher]: new Mutex(),
+    [ProxyRequestType.VideoWeaver]: new Mutex(),
+    [ProxyRequestType.GraphQL]: new Mutex(),
+    [ProxyRequestType.GraphQLToken]: new Mutex(),
+    [ProxyRequestType.GraphQLIntegrity]: new Mutex(),
+    [ProxyRequestType.TwitchWebpage]: new Mutex(),
+  },
   twitchWorkers: [],
   sendMessageToContentScript,
   sendMessageToContentScriptAndWaitForResponse,
@@ -39,7 +49,6 @@ const pageState: PageState = {
   sendMessageToWorkerScriptsAndWaitForResponse,
 };
 
-const NATIVE_FETCH = window.fetch;
 window.fetch = getFetch(pageState);
 
 const NATIVE_WORKER = window.Worker;

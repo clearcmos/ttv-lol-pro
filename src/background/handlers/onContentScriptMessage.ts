@@ -17,7 +17,8 @@ export default function onContentScriptMessage(
   sendResponse?: (message: any) => void
 ): Promise<any> | true | undefined {
   if (message.type === MessageType.EnableFullMode) {
-    if (!sender.tab?.id) return;
+    const tabId = sender.tab?.id;
+    if (!tabId) return;
 
     const requestType = message.requestType as ProxyRequestType;
 
@@ -34,12 +35,24 @@ export default function onContentScriptMessage(
     timeoutMap.set(
       requestType,
       setTimeout(() => {
-        console.log(
-          `🔴 Disabled full mode (request type: ${requestType}, timeout)`
-        );
         timeoutMap.delete(requestType);
         if (store.state.chromiumProxyActive) {
           updateProxySettings([...timeoutMap.keys()]);
+        }
+        console.log(
+          `🔴 Disabled full mode (request type: ${requestType}, timeout)`
+        );
+        try {
+          browser.tabs.sendMessage(tabId, {
+            type: MessageType.DisableFullModeResponse,
+            requestType,
+            reason: "TIMEOUT",
+          });
+        } catch (error) {
+          console.error(
+            "❌ Failed to send DisableFullModeResponse message",
+            error
+          );
         }
       }, fetchTimeoutMs + replyTimeoutMs)
     );
@@ -53,8 +66,10 @@ export default function onContentScriptMessage(
       }ms (request type: ${requestType})`
     );
     try {
-      browser.tabs.sendMessage(sender.tab.id, {
+      browser.tabs.sendMessage(tabId, {
         type: MessageType.EnableFullModeResponse,
+        requestType,
+        reason: "ENABLED",
       });
     } catch (error) {
       console.error("❌ Failed to send EnableFullModeResponse message", error);
@@ -62,7 +77,11 @@ export default function onContentScriptMessage(
   }
 
   if (message.type === MessageType.DisableFullMode) {
+    const tabId = sender.tab?.id;
+    if (!tabId) return;
+
     const requestType = message.requestType as ProxyRequestType;
+
     // Clear existing timeout for request type.
     if (timeoutMap.has(requestType)) {
       clearTimeout(timeoutMap.get(requestType));
@@ -71,7 +90,17 @@ export default function onContentScriptMessage(
     if (store.state.chromiumProxyActive) {
       updateProxySettings([...timeoutMap.keys()]);
     }
+
     console.log(`🔴 Disabled full mode (request type: ${requestType})`);
+    try {
+      browser.tabs.sendMessage(tabId, {
+        type: MessageType.DisableFullModeResponse,
+        requestType,
+        reason: "DISABLED",
+      });
+    } catch (error) {
+      console.error("❌ Failed to send DisableFullModeResponse message", error);
+    }
   }
 
   if (message.type === MessageType.UsherResponse) {

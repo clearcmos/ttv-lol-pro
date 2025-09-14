@@ -1,5 +1,6 @@
+import { Mutex } from "async-mutex";
 import type { State } from "../store/types";
-import { MessageType } from "../types";
+import { MessageType, ProxyRequestType } from "../types";
 
 export type SendMessageFn = (message: any) => void;
 export type SendMessageWorkersFn = (workers: Worker[], message: any) => void;
@@ -21,6 +22,7 @@ export interface PageState {
   isChromium: boolean;
   scope: "page" | "worker";
   state?: State;
+  requestTypeMutexes: Record<ProxyRequestType, Mutex>;
   twitchWorkers: Worker[];
   sendMessageToContentScript: SendMessageFn;
   sendMessageToContentScriptAndWaitForResponse: SendMessageAndWaitForResponseFn;
