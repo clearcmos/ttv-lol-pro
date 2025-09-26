@@ -22,20 +22,25 @@ try {
 }
 getParams = undefined as any;
 
-const sendMessageToContentScript = getSendMessageToContentScript();
+const broadcastChannel = new BroadcastChannel(params.broadcastChannelName);
+
+const sendMessageToContentScript =
+  getSendMessageToContentScript(broadcastChannel);
 const sendMessageToContentScriptAndWaitForResponse =
-  getSendMessageToContentScriptAndWaitForResponse();
-const sendMessageToPageScript = getSendMessageToPageScript();
+  getSendMessageToContentScriptAndWaitForResponse(broadcastChannel);
+const sendMessageToPageScript = getSendMessageToPageScript(broadcastChannel);
 const sendMessageToPageScriptAndWaitForResponse =
-  getSendMessageToPageScriptAndWaitForResponse();
-const sendMessageToWorkerScripts = getSendMessageToWorkerScripts();
+  getSendMessageToPageScriptAndWaitForResponse(broadcastChannel);
+const sendMessageToWorkerScripts =
+  getSendMessageToWorkerScripts(broadcastChannel);
 const sendMessageToWorkerScriptsAndWaitForResponse =
-  getSendMessageToWorkerScriptsAndWaitForResponse();
+  getSendMessageToWorkerScriptsAndWaitForResponse(broadcastChannel);
 
 const pageState: PageState = {
   isChromium: params.isChromium,
   scope: "worker",
   state: undefined,
+  broadcastChannelName: params.broadcastChannelName,
   requestTypeMutexes: {
     [ProxyRequestType.Passport]: new Mutex(),
     [ProxyRequestType.Usher]: new Mutex(),
@@ -56,7 +61,7 @@ const pageState: PageState = {
 
 self.fetch = getFetch(pageState);
 
-self.addEventListener("message", event => {
+broadcastChannel.addEventListener("message", event => {
   if (!event.data || event.data.type !== MessageType.WorkerScriptMessage) {
     return;
   }

@@ -3,18 +3,10 @@ import type { State } from "../store/types";
 import { MessageType, ProxyRequestType } from "../types";
 
 export type SendMessageFn = (message: any) => void;
-export type SendMessageWorkersFn = (workers: Worker[], message: any) => void;
 export type SendMessageAndWaitForResponseFn = (
   scope: "page" | "worker",
   message: any,
   responseMessageType: MessageType,
-  responseTimeout?: number
-) => Promise<any>;
-export type SendMessageAndWaitForResponseWorkersFn = (
-  workers: Worker[],
-  message: any,
-  responseMessageType: MessageType,
-  scope: "page" | "worker",
   responseTimeout?: number
 ) => Promise<any>;
 
@@ -22,14 +14,15 @@ export interface PageState {
   isChromium: boolean;
   scope: "page" | "worker";
   state?: State;
+  broadcastChannelName: string;
   requestTypeMutexes: Record<ProxyRequestType, Mutex>;
   twitchWorkers: Worker[];
   sendMessageToContentScript: SendMessageFn;
   sendMessageToContentScriptAndWaitForResponse: SendMessageAndWaitForResponseFn;
   sendMessageToPageScript: SendMessageFn;
   sendMessageToPageScriptAndWaitForResponse: SendMessageAndWaitForResponseFn;
-  sendMessageToWorkerScripts: SendMessageWorkersFn;
-  sendMessageToWorkerScriptsAndWaitForResponse: SendMessageAndWaitForResponseWorkersFn;
+  sendMessageToWorkerScripts: SendMessageFn;
+  sendMessageToWorkerScriptsAndWaitForResponse: SendMessageAndWaitForResponseFn;
 }
 
 export interface UsherManifest {

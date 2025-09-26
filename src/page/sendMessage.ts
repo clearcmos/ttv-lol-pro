@@ -1,29 +1,19 @@
 import { MessageType } from "../types";
-import type {
-  SendMessageAndWaitForResponseFn,
-  SendMessageAndWaitForResponseWorkersFn,
-  SendMessageFn,
-  SendMessageWorkersFn,
-} from "./types";
-
-// TODO: Secure communication between content, page, and worker scripts.
+import type { SendMessageAndWaitForResponseFn, SendMessageFn } from "./types";
 
 function sendMessage(
-  recipient: Window | Worker | undefined,
+  broadcastChannel: BroadcastChannel,
   type: MessageType,
   message: any
 ): void {
-  if (!recipient) {
-    return console.error("[TTV LOL PRO] Message recipient is undefined.");
-  }
-  recipient.postMessage({
+  broadcastChannel.postMessage({
     type,
     message,
   });
 }
 
 async function sendMessageAndWaitForResponse(
-  recipient: Window | Worker | undefined,
+  broadcastChannel: BroadcastChannel,
   type: MessageType,
   message: any,
   responseType: MessageType,
@@ -31,10 +21,6 @@ async function sendMessageAndWaitForResponse(
   responseTimeout: number
 ): Promise<any> {
   return new Promise((resolve, reject) => {
-    if (!recipient) {
-      return reject(new Error("Message recipient is undefined."));
-    }
-
     const listener = (event: MessageEvent) => {
       if (!event.data || event.data.type !== responseType) return;
       const { message } = event.data;
@@ -45,8 +31,8 @@ async function sendMessageAndWaitForResponse(
       }
     };
 
-    self.addEventListener("message", listener);
-    recipient.postMessage({
+    broadcastChannel.addEventListener("message", listener);
+    broadcastChannel.postMessage({
       type,
       message,
       responseType,
@@ -59,12 +45,16 @@ async function sendMessageAndWaitForResponse(
   });
 }
 
-export function getSendMessageToContentScript(): SendMessageFn {
+export function getSendMessageToContentScript(
+  broadcastChannel: BroadcastChannel
+): SendMessageFn {
   return (message: any) =>
-    sendMessage(self, MessageType.ContentScriptMessage, message);
+    sendMessage(broadcastChannel, MessageType.ContentScriptMessage, message);
 }
 
-export function getSendMessageToContentScriptAndWaitForResponse(): SendMessageAndWaitForResponseFn {
+export function getSendMessageToContentScriptAndWaitForResponse(
+  broadcastChannel: BroadcastChannel
+): SendMessageAndWaitForResponseFn {
   return async (
     scope: "page" | "worker",
     message: any,
@@ -72,7 +62,7 @@ export function getSendMessageToContentScriptAndWaitForResponse(): SendMessageAn
     responseTimeout: number = 5000
   ) => {
     return sendMessageAndWaitForResponse(
-      self,
+      broadcastChannel,
       MessageType.ContentScriptMessage,
       message,
       scope === "page"
@@ -84,12 +74,16 @@ export function getSendMessageToContentScriptAndWaitForResponse(): SendMessageAn
   };
 }
 
-export function getSendMessageToPageScript(): SendMessageFn {
+export function getSendMessageToPageScript(
+  broadcastChannel: BroadcastChannel
+): SendMessageFn {
   return (message: any) =>
-    sendMessage(self, MessageType.PageScriptMessage, message);
+    sendMessage(broadcastChannel, MessageType.PageScriptMessage, message);
 }
 
-export function getSendMessageToPageScriptAndWaitForResponse(): SendMessageAndWaitForResponseFn {
+export function getSendMessageToPageScriptAndWaitForResponse(
+  broadcastChannel: BroadcastChannel
+): SendMessageAndWaitForResponseFn {
   return async (
     scope: "page" | "worker",
     message: any,
@@ -97,7 +91,7 @@ export function getSendMessageToPageScriptAndWaitForResponse(): SendMessageAndWa
     responseTimeout: number = 5000
   ) => {
     return sendMessageAndWaitForResponse(
-      self,
+      broadcastChannel,
       MessageType.PageScriptMessage,
       message,
       scope === "page"
@@ -109,34 +103,31 @@ export function getSendMessageToPageScriptAndWaitForResponse(): SendMessageAndWa
   };
 }
 
-export function getSendMessageToWorkerScripts(): SendMessageWorkersFn {
-  return (workers: Worker[], message: any) =>
-    workers.forEach(worker =>
-      sendMessage(worker, MessageType.WorkerScriptMessage, message)
-    );
+export function getSendMessageToWorkerScripts(
+  broadcastChannel: BroadcastChannel
+): SendMessageFn {
+  return (message: any) =>
+    sendMessage(broadcastChannel, MessageType.WorkerScriptMessage, message);
 }
 
-export function getSendMessageToWorkerScriptsAndWaitForResponse(): SendMessageAndWaitForResponseWorkersFn {
+export function getSendMessageToWorkerScriptsAndWaitForResponse(
+  broadcastChannel: BroadcastChannel
+): SendMessageAndWaitForResponseFn {
   return async (
-    workers: Worker[],
+    scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    scope: "page" | "worker",
     responseTimeout: number = 5000
   ) => {
-    return Promise.any(
-      workers.map(worker =>
-        sendMessageAndWaitForResponse(
-          worker,
-          MessageType.WorkerScriptMessage,
-          message,
-          scope === "page"
-            ? MessageType.PageScriptMessage
-            : MessageType.WorkerScriptMessage,
-          responseMessageType,
-          responseTimeout
-        )
-      )
+    return sendMessageAndWaitForResponse(
+      broadcastChannel,
+      MessageType.WorkerScriptMessage,
+      message,
+      scope === "page"
+        ? MessageType.PageScriptMessage
+        : MessageType.WorkerScriptMessage,
+      responseMessageType,
+      responseTimeout
     );
   };
 }

@@ -27,6 +27,7 @@ export default function onBeforeTwitchTvSendHeaders(
     script.dataset.params = JSON.stringify({
       isChromium,
       workerScriptURL, // src/page/worker.ts
+      // broadcastChannelName,
     });
     script.onload = () => script.remove();
     // ---------------------------------------

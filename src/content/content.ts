@@ -2,6 +2,7 @@ import pageScriptURL from "url:../page/page.ts";
 import workerScriptURL from "url:../page/worker.ts";
 import browser, { Storage } from "webextension-polyfill";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
+import generateRandomString from "../common/ts/generateRandomString";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
 import isChromium from "../common/ts/isChromium";
 import { getStreamStatus, setStreamStatus } from "../common/ts/streamStatus";
@@ -11,15 +12,17 @@ import { MessageType } from "../types";
 
 console.info("[TTV LOL PRO] Content script running.");
 
-if (isChromium) injectPageScript();
-// Firefox uses FilterResponseData to inject the page script.
+const broadcastChannelName = `TLP_${generateRandomString(32)}`;
+const broadcastChannel = new BroadcastChannel(broadcastChannelName);
+
+injectPageScript();
 
 if (store.readyState === "complete") onStoreLoad();
 else store.addEventListener("load", onStoreLoad);
 store.addEventListener("change", onStoreChange);
 
 browser.runtime.onMessage.addListener(onBackgroundMessage);
-window.addEventListener("message", onPageMessage);
+broadcastChannel.addEventListener("message", onPageMessage);
 
 function injectPageScript() {
   // From https://stackoverflow.com/a/9517879
@@ -28,6 +31,7 @@ function injectPageScript() {
   script.dataset.params = JSON.stringify({
     isChromium,
     workerScriptURL, // src/page/worker.ts
+    broadcastChannelName,
   });
   script.onload = () => script.remove();
   // ---------------------------------------
@@ -76,7 +80,7 @@ function onStoreChange(changes: Record<string, Storage.StorageChange>) {
   ];
   if (changedKeys.every(key => ignoredKeys.includes(key))) return;
   console.log("[TTV LOL PRO] Store changed:", changes);
-  window.postMessage({
+  broadcastChannel.postMessage({
     type: MessageType.PageScriptMessage,
     message: {
       type: MessageType.GetStoreStateResponse,
@@ -93,11 +97,11 @@ function onBackgroundMessage(message: any): undefined {
     message.type === MessageType.DisableFullModeResponse
   ) {
     // Forward the message to the page script and worker script(s).
-    window.postMessage({
+    broadcastChannel.postMessage({
       type: MessageType.PageScriptMessage,
       message,
     });
-    window.postMessage({
+    broadcastChannel.postMessage({
       type: MessageType.WorkerScriptMessage,
       message,
     });
@@ -114,7 +118,7 @@ function onPageMessage(event: MessageEvent) {
 
   if (message.type === MessageType.GetStoreState) {
     const sendStoreState = () => {
-      window.postMessage({
+      broadcastChannel.postMessage({
         type: MessageType.PageScriptMessage,
         message: {
           type: MessageType.GetStoreStateResponse,

@@ -17,6 +17,8 @@ const IS_DEVELOPMENT = process.env.NODE_ENV == "development";
 const NATIVE_FETCH = self.fetch;
 
 export function getFetch(pageState: PageState): typeof fetch {
+  const broadcastChannel = new BroadcastChannel(pageState.broadcastChannelName);
+
   let usherManifests: UsherManifest[] = [];
   let videoWeaverUrlsProxiedCount = new Map<string, number>(); // Used to count how many times each Video Weaver URL was proxied.
   let videoWeaverUrlsToNotProxy = new Set<string>(); // Used to avoid proxying frontpage or whitelisted Video Weaver URLs.
@@ -27,7 +29,7 @@ export function getFetch(pageState: PageState): typeof fetch {
 
   // Listen for NewPlaybackAccessToken messages from the worker script.
   if (pageState.scope === "page") {
-    self.addEventListener("message", async event => {
+    broadcastChannel.addEventListener("message", async event => {
       if (!event.data || event.data.type !== MessageType.PageScriptMessage) {
         return;
       }
@@ -44,7 +46,7 @@ export function getFetch(pageState: PageState): typeof fetch {
               cachedPlaybackTokenRequestHeaders,
               cachedPlaybackTokenRequestBody
             );
-          pageState.sendMessageToWorkerScripts(pageState.twitchWorkers, {
+          pageState.sendMessageToWorkerScripts({
             type: MessageType.NewPlaybackAccessTokenResponse,
             newPlaybackAccessToken,
           });
@@ -53,11 +55,13 @@ export function getFetch(pageState: PageState): typeof fetch {
     });
   }
 
-  // Listen for ClearStats messages from the page script.
-  self.addEventListener("message", async event => {
+  // Listen for messages from the content or page script.
+  broadcastChannel.addEventListener("message", async event => {
     if (
       !event.data ||
-      (event.data.type !== MessageType.PageScriptMessage &&
+      (pageState.scope === "page" &&
+        event.data.type !== MessageType.PageScriptMessage) ||
+      (pageState.scope === "worker" &&
         event.data.type !== MessageType.WorkerScriptMessage)
     ) {
       return;

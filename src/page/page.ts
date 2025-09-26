@@ -17,20 +17,25 @@ console.info("[TTV LOL PRO] Page script running.");
 
 const params = JSON.parse(document.currentScript!.dataset.params!);
 
-const sendMessageToContentScript = getSendMessageToContentScript();
+const broadcastChannel = new BroadcastChannel(params.broadcastChannelName);
+
+const sendMessageToContentScript =
+  getSendMessageToContentScript(broadcastChannel);
 const sendMessageToContentScriptAndWaitForResponse =
-  getSendMessageToContentScriptAndWaitForResponse();
-const sendMessageToPageScript = getSendMessageToPageScript();
+  getSendMessageToContentScriptAndWaitForResponse(broadcastChannel);
+const sendMessageToPageScript = getSendMessageToPageScript(broadcastChannel);
 const sendMessageToPageScriptAndWaitForResponse =
-  getSendMessageToPageScriptAndWaitForResponse();
-const sendMessageToWorkerScripts = getSendMessageToWorkerScripts();
+  getSendMessageToPageScriptAndWaitForResponse(broadcastChannel);
+const sendMessageToWorkerScripts =
+  getSendMessageToWorkerScripts(broadcastChannel);
 const sendMessageToWorkerScriptsAndWaitForResponse =
-  getSendMessageToWorkerScriptsAndWaitForResponse();
+  getSendMessageToWorkerScriptsAndWaitForResponse(broadcastChannel);
 
 const pageState: PageState = {
   isChromium: params.isChromium,
   scope: "page",
   state: undefined,
+  broadcastChannelName: params.broadcastChannelName,
   requestTypeMutexes: {
     [ProxyRequestType.Passport]: new Mutex(),
     [ProxyRequestType.Usher]: new Mutex(),
@@ -40,7 +45,7 @@ const pageState: PageState = {
     [ProxyRequestType.GraphQLIntegrity]: new Mutex(),
     [ProxyRequestType.TwitchWebpage]: new Mutex(),
   },
-  twitchWorkers: [],
+  twitchWorkers: [], // No longer used. Might be useful in the future?
   sendMessageToContentScript,
   sendMessageToContentScriptAndWaitForResponse,
   sendMessageToPageScript,
@@ -119,28 +124,16 @@ window.Worker = class Worker extends NATIVE_WORKER {
     );
     super(wrapperScriptURL, options);
     pageState.twitchWorkers.push(this);
-    this.addEventListener("message", event => {
-      if (
-        event.data?.type === MessageType.ContentScriptMessage ||
-        event.data?.type === MessageType.PageScriptMessage
-      ) {
-        window.postMessage(event.data);
-      }
-    });
     // Can't revoke `newScriptURL` because of a conflict with VAFT.
     URL.revokeObjectURL(wrapperScriptURL);
   }
 };
 
 let sendStoreStateToWorker = false;
-window.addEventListener("message", event => {
-  // Relay messages from the content script to the worker script.
-  if (event.data?.type === MessageType.WorkerScriptMessage) {
-    sendMessageToWorkerScripts(pageState.twitchWorkers, event.data.message);
+broadcastChannel.addEventListener("message", event => {
+  if (!event.data || event.data.type !== MessageType.PageScriptMessage) {
     return;
   }
-
-  if (!event.data || event.data.type !== MessageType.PageScriptMessage) return;
 
   const { message } = event.data;
   if (!message) return;
@@ -148,7 +141,7 @@ window.addEventListener("message", event => {
   switch (message.type) {
     case MessageType.GetStoreState: // From Worker
       if (pageState.state != null) {
-        sendMessageToWorkerScripts(pageState.twitchWorkers, {
+        sendMessageToWorkerScripts({
           type: MessageType.GetStoreStateResponse,
           state: pageState.state,
         });
@@ -166,7 +159,7 @@ window.addEventListener("message", event => {
       const state = message.state;
       pageState.state = state;
       if (sendStoreStateToWorker) {
-        sendMessageToWorkerScripts(pageState.twitchWorkers, {
+        sendMessageToWorkerScripts({
           type: MessageType.GetStoreStateResponse,
           state,
         });
@@ -235,7 +228,7 @@ onChannelChange((_channelName, oldChannelName) => {
     type: MessageType.ClearStats,
     channelName: oldChannelName,
   });
-  sendMessageToWorkerScripts(pageState.twitchWorkers, {
+  sendMessageToWorkerScripts({
     type: MessageType.ClearStats,
     channelName: oldChannelName,
   });
