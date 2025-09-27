@@ -2,6 +2,7 @@ import browser, { WebRequest } from "webextension-polyfill";
 import findChannelFromTwitchTvUrl from "../../common/ts/findChannelFromTwitchTvUrl";
 import findChannelFromVideoWeaverUrl from "../../common/ts/findChannelFromVideoWeaverUrl";
 import getHostFromUrl from "../../common/ts/getHostFromUrl";
+import { normalizeIpAddress } from "../../common/ts/ipAddress";
 import isChromium from "../../common/ts/isChromium";
 import isRequestTypeProxied from "../../common/ts/isRequestTypeProxied";
 import {
@@ -149,10 +150,9 @@ function getProxyFromDetails(
   }
 ): string | null {
   if (isChromium) {
-    const proxies = [
-      ...store.state.optimizedProxies,
-      ...store.state.normalProxies,
-    ];
+    const proxies = Array.from(
+      new Set([...store.state.optimizedProxies, ...store.state.normalProxies])
+    );
     const isDnsError =
       proxies.length !== 0 && store.state.dnsResponses.length === 0;
     if (isDnsError) {
@@ -162,8 +162,12 @@ function getProxyFromDetails(
     }
     const ip = details.ip;
     if (!ip) return null;
-    const dnsResponse = store.state.dnsResponses.find(
-      dnsResponse => dnsResponse.ips.indexOf(ip) !== -1
+    const normalizedIp = normalizeIpAddress(ip) ?? ip;
+    const dnsResponse = store.state.dnsResponses.find(dnsResponse =>
+      dnsResponse.ips.some(responseIp => {
+        const normalizedResponseIp = normalizeIpAddress(responseIp);
+        return (normalizedResponseIp ?? responseIp) === normalizedIp;
+      })
     );
     if (!dnsResponse) return null;
     const proxyInfoArray = proxies.map(getProxyInfoFromUrl);

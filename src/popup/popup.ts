@@ -1,12 +1,12 @@
 import Bowser from "bowser";
 import browser from "webextension-polyfill";
 import $ from "../common/ts/$";
+import { alpha2 } from "../common/ts/countryCodes";
+import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
 import {
   anonymizeIpAddress,
   anonymizeIpAddresses,
-} from "../common/ts/anonymizeIpAddress";
-import { alpha2 } from "../common/ts/countryCodes";
-import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
+} from "../common/ts/ipAddress";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
 import store from "../store";
 import type { AdLogEntry, StreamStatus } from "../types";

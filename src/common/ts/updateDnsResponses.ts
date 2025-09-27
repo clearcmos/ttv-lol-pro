@@ -3,75 +3,88 @@ import store from "../../store";
 import type { DnsResponse, DnsResponseJson } from "../../types";
 import { getProxyInfoFromUrl } from "./proxyInfo";
 
+const DNS_API = "https://cloudflare-dns.com/dns-query";
+const MIN_TTL = 300;
+
 export default async function updateDnsResponses() {
-  const proxies = [
-    ...store.state.optimizedProxies,
-    ...store.state.normalProxies,
-  ];
+  const proxies = Array.from(
+    new Set([...store.state.optimizedProxies, ...store.state.normalProxies])
+  );
   const proxyInfoArray = proxies.map(getProxyInfoFromUrl);
 
   for (const proxyInfo of proxyInfoArray) {
     const { host } = proxyInfo;
 
-    // Check if we already have a valid DNS response for this host.
-    const dnsResponseIndex = store.state.dnsResponses.findIndex(
+    // If we already have a valid DNS response for this host, skip it.
+    const existingIndex = store.state.dnsResponses.findIndex(
       dnsResponse => dnsResponse.host === host
     );
+    const existing =
+      existingIndex !== -1 ? store.state.dnsResponses[existingIndex] : null;
     const isDnsResponseValid =
-      dnsResponseIndex !== -1 &&
-      Date.now() - store.state.dnsResponses[dnsResponseIndex].timestamp <
-        store.state.dnsResponses[dnsResponseIndex].ttl * 1000;
+      existing && Date.now() - existing.timestamp < existing.ttl * 1000;
     if (isDnsResponseValid) {
       continue;
     }
 
-    // If the host is an IP address, we don't need to make a DNS request.
+    // If the host is an IP address, use it directly.
     const isIp = Address4.isValid(host) || Address6.isValid(host);
     if (isIp) {
-      const dnsResponse: DnsResponse = {
+      upsertDnsResponse(existingIndex, {
         host,
         ips: [host],
         timestamp: Date.now(),
         ttl: Infinity,
-      };
-      if (dnsResponseIndex !== -1) {
-        store.state.dnsResponses.splice(dnsResponseIndex, 1, dnsResponse);
-      } else {
-        store.state.dnsResponses.push(dnsResponse);
-      }
+      });
       continue;
     }
 
-    // Make the DNS request.
+    // Otherwise, fetch DNS records from the DNS-over-HTTPS API.
     try {
-      const response = await fetch(
-        `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}`,
-        {
-          headers: {
-            Accept: "application/dns-json",
-          },
-        }
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data: DnsResponseJson = await response.json();
-      if (data.Status !== 0) {
-        throw new Error(`DNS status ${data.Status}`);
-      }
-      const { Answer } = data;
+      const requests = [
+        fetch(`${DNS_API}?name=${encodeURIComponent(host)}&type=A`, {
+          headers: { Accept: "application/dns-json" },
+        }),
+        fetch(`${DNS_API}?name=${encodeURIComponent(host)}&type=AAAA`, {
+          headers: { Accept: "application/dns-json" },
+        }),
+      ];
+      const responses = await Promise.all(requests);
 
-      const dnsResponse: DnsResponse = {
-        host,
-        ips: Answer.map(answer => answer.data),
-        timestamp: Date.now(),
-        ttl: Math.max(Math.max(...Answer.map(answer => answer.TTL)), 300),
-      };
-      if (dnsResponseIndex !== -1) {
-        store.state.dnsResponses.splice(dnsResponseIndex, 1, dnsResponse);
-      } else {
-        store.state.dnsResponses.push(dnsResponse);
+      let ips = [] as string[];
+      let ttl = Infinity;
+      for (const response of responses) {
+        if (!response.ok) {
+          console.error(
+            `Failed to fetch DNS for ${host}: HTTP ${response.status}`
+          );
+          continue;
+        }
+        const data: DnsResponseJson = await response.json();
+        if (data.Status !== 0) {
+          console.error(`DNS query for ${host} returned status ${data.Status}`);
+          continue;
+        }
+        const { Answer } = data;
+        if (Answer) {
+          ips.push(...Answer.map(answer => answer.data));
+          const answerTtl = Math.min(...Answer.map(answer => answer.TTL));
+          if (answerTtl < ttl) {
+            ttl = answerTtl;
+          }
+        }
       }
+      if (ips.length === 0) {
+        console.error(`No DNS answers found for ${host}`);
+        continue;
+      }
+
+      upsertDnsResponse(existingIndex, {
+        host,
+        ips: Array.from(new Set(ips)), // Remove duplicates
+        timestamp: Date.now(),
+        ttl: Math.max(ttl, MIN_TTL), // Enforce minimum TTL
+      });
     } catch (error) {
       console.error(error);
     }
@@ -79,4 +92,17 @@ export default async function updateDnsResponses() {
 
   console.log("🔍 DNS responses updated:");
   console.log(store.state.dnsResponses);
+}
+
+/**
+ * Upsert a DNS response into the store.
+ * @param existingIndex Index of existing DNS response, or -1 if not found.
+ * @param dnsResponse The DNS response to upsert.
+ */
+function upsertDnsResponse(existingIndex: number, dnsResponse: DnsResponse) {
+  if (existingIndex !== -1) {
+    store.state.dnsResponses.splice(existingIndex, 1, dnsResponse);
+  } else {
+    store.state.dnsResponses.push(dnsResponse);
+  }
 }
