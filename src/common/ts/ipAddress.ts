@@ -48,7 +48,7 @@ export function normalizeIpAddress(ip: string): string | null {
       if (addr6.is4()) {
         return addr6.to4().correctForm();
       }
-      return addr6.canonicalForm();
+      return addr6.correctForm();
     }
   } catch {
     return null;
@@ -90,7 +90,7 @@ export function anonymizeIpAddress(url: string): string {
     }
   }
 
-  return proxyHost; // Also anonymizes port.
+  return proxyHost; // Anonymize port by removing it.
 }
 
 /**

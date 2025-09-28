@@ -57,16 +57,6 @@ if (isChromium) {
   browser.tabs.onRemoved.addListener(onTabRemoved);
   browser.tabs.onReplaced.addListener(onTabReplaced);
 } else {
-  // // Inject page script.
-  // browser.webRequest.onBeforeSendHeaders.addListener(
-  //   onBeforeTwitchTvSendHeaders,
-  //   {
-  //     urls: ["https://www.twitch.tv/*", "https://m.twitch.tv/*"],
-  //     types: ["main_frame"],
-  //   },
-  //   ["blocking", "requestHeaders"]
-  // );
-
   // Block tracking pixels.
   browser.webRequest.onBeforeRequest.addListener(
     () => ({ cancel: true }),

@@ -13,7 +13,7 @@ import {
 import { MessageType, ProxyRequestType } from "../types";
 import type { PageState, PlaybackAccessToken, UsherManifest } from "./types";
 
-const IS_DEVELOPMENT = process.env.NODE_ENV == "development";
+const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
 const NATIVE_FETCH = self.fetch;
 
 export function getFetch(pageState: PageState): typeof fetch {
