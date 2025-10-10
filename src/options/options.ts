@@ -279,36 +279,25 @@ function updateProxyUsage() {
     isFlagged: true,
   };
 
-  // Proxy usage label.
-  let usageScore = 0;
-  // Unoptimized mode penalty.
-  if (!store.state.optimizedProxiesEnabled) usageScore += 1;
-  // GraphQL integrity penalty and warning.
   if (
+    isRequestTypeProxied(ProxyRequestType.GraphQLAll, unflaggedRequestParams)
+  ) {
+    passportLevelProxyUsageSummaryElement.textContent = "🙁 High proxy usage";
+    passportLevelProxyUsageElement.dataset.usage = "high";
+    passportLevelWarningElement.style.display = "block";
+  } else if (
     isRequestTypeProxied(
       ProxyRequestType.GraphQLIntegrity,
       unflaggedRequestParams
     )
   ) {
-    usageScore += 1;
+    passportLevelProxyUsageSummaryElement.textContent = "😐 Medium proxy usage";
+    passportLevelProxyUsageElement.dataset.usage = "medium";
     passportLevelWarningElement.style.display = "block";
   } else {
+    passportLevelProxyUsageSummaryElement.textContent = "🙂 Low proxy usage";
+    passportLevelProxyUsageElement.dataset.usage = "low";
     passportLevelWarningElement.style.display = "none";
-  }
-  switch (usageScore) {
-    case 0:
-      passportLevelProxyUsageSummaryElement.textContent = "🙂 Low proxy usage";
-      passportLevelProxyUsageElement.dataset.usage = "low";
-      break;
-    case 1:
-      passportLevelProxyUsageSummaryElement.textContent =
-        "😐 Medium proxy usage";
-      passportLevelProxyUsageElement.dataset.usage = "medium";
-      break;
-    case 2:
-      passportLevelProxyUsageSummaryElement.textContent = "🙁 High proxy usage";
-      passportLevelProxyUsageElement.dataset.usage = "high";
-      break;
   }
 
   // Passport
@@ -340,7 +329,9 @@ function updateProxyUsage() {
     passportLevelProxyUsageVideoWeaverElement.textContent = "None";
   }
   // GraphQL
-  if (isRequestTypeProxied(ProxyRequestType.GraphQL, unflaggedRequestParams)) {
+  if (
+    isRequestTypeProxied(ProxyRequestType.GraphQLAll, unflaggedRequestParams)
+  ) {
     passportLevelProxyUsageGqlElement.textContent = "All";
   } else if (
     isRequestTypeProxied(

@@ -43,6 +43,7 @@ const pageState: PageState = {
     [ProxyRequestType.GraphQL]: new Mutex(),
     [ProxyRequestType.GraphQLToken]: new Mutex(),
     [ProxyRequestType.GraphQLIntegrity]: new Mutex(),
+    [ProxyRequestType.GraphQLAll]: new Mutex(),
     [ProxyRequestType.TwitchWebpage]: new Mutex(),
   },
   twitchWorkers: [], // No longer used. Might be useful in the future?

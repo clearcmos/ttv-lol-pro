@@ -1,14 +1,17 @@
 import store from "../../store";
-import type { UserExperienceMode } from "../../types";
+import type { ObjectEntries, UserExperienceMode } from "../../types";
 import isChromium from "./isChromium";
 import { updateProxySettings } from "./proxySettings";
 
 export default function loadExperience(experience: UserExperienceMode) {
   // Restore overridden options to the state.
-  for (const [key, value] of Object.entries(
+  const typedEntries = Object.entries(
     store.state.userExperienceOverridenOptions
-  )) {
-    (store.state as any)[key] = value; // TODO: Use a more type-safe approach.
+  ) as ObjectEntries<typeof store.state.userExperienceOverridenOptions>;
+  for (const [key, value] of typedEntries) {
+    if (key in store.state && value !== undefined) {
+      (store.state as any)[key] = value;
+    }
   }
   store.state.userExperienceOverridenOptions = {};
 
@@ -32,9 +35,9 @@ export default function loadExperience(experience: UserExperienceMode) {
         passport: false,
         usher: true,
         videoWeaver: false,
-        graphQL: true,
         graphQLToken: true,
         graphQLIntegrity: false,
+        graphQLAll: false,
         twitchWebpage: false,
       };
       store.state.whitelistChannelSubscriptions = false;

@@ -30,7 +30,9 @@ export interface State {
   passportLevel: number;
   streamStatuses: Record<string, StreamStatus>;
   userExperienceMode: UserExperienceMode;
-  userExperienceOverridenOptions: Partial<State>;
+  userExperienceOverridenOptions: Partial<
+    Omit<State, "userExperienceOverridenOptions">
+  >;
   videoWeaverUrlsByChannel: Record<string, string[]>;
   whitelistChannelSubscriptions: boolean;
   whitelistedChannels: string[];

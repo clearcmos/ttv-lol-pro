@@ -3,6 +3,9 @@ export type KeyOfType<T, V> = keyof {
   [P in keyof T as T[P] extends V ? P : never]: any;
 };
 
+// From https://www.charpeni.com/blog/properly-type-object-keys-and-object-entries#solution-1
+export type ObjectEntries<T> = Array<[keyof T, T[keyof T]]>;
+
 export type ProxyType = "direct" | "http" | "https" | "socks" | "socks4";
 
 // From https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/proxy/ProxyInfo
@@ -97,6 +100,7 @@ export const enum ProxyRequestType {
   GraphQL = "graphQL",
   GraphQLToken = "graphQLToken",
   GraphQLIntegrity = "graphQLIntegrity",
+  GraphQLAll = "graphQLAll",
   TwitchWebpage = "twitchWebpage",
 }
 
@@ -116,9 +120,12 @@ export type ProxyRequestParams =
       isFlagged?: boolean;
     };
 
+export type PassportConfig = Record<
+  Exclude<ProxyRequestType, ProxyRequestType.GraphQL>,
+  boolean
+>;
+
 export type UserExperienceMode =
   | "blockAds"
   | "unlockBestQuality"
   | "expertMode";
-
-export type PassportConfig = Record<ProxyRequestType, boolean>;

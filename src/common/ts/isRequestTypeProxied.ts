@@ -4,6 +4,8 @@ export default function isRequestTypeProxied(
   type: ProxyRequestType,
   params: ProxyRequestParams
 ): boolean {
+  // TODO: Align passport level logic between Chromium and Firefox.
+
   if (type === ProxyRequestType.Passport) {
     if (params.isChromium && !params.optimizedProxiesEnabled) {
       return params.customPassport?.passport ?? params.passportLevel >= 0;
@@ -33,7 +35,7 @@ export default function isRequestTypeProxied(
         return false;
       }
     }
-    return params.customPassport?.videoWeaver ?? true;
+    return params.customPassport?.videoWeaver ?? params.passportLevel >= 0;
   }
 
   if (type === ProxyRequestType.GraphQLToken) {
@@ -56,37 +58,38 @@ export default function isRequestTypeProxied(
     }
   }
 
-  // TODO: Rework this to have GraphQLToken, GraphQLIntegrity, and GraphQLAll types.
+  if (type === ProxyRequestType.GraphQLAll) {
+    if (!params.optimizedProxiesEnabled) {
+      if (
+        params.isChromium &&
+        (params.customPassport?.graphQLAll ?? params.passportLevel >= 1)
+      ) {
+        return true;
+      }
+      if (
+        !params.isChromium &&
+        (params.customPassport?.graphQLAll ?? params.passportLevel >= 2)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   if (type === ProxyRequestType.GraphQL) {
-    // Proxy all GQL requests when passport is unoptimized official+ (Chromium)
-    // or unoptimized diplomatic+ (Firefox).
-    if (
-      params.isChromium &&
-      !params.optimizedProxiesEnabled &&
-      (params.customPassport?.graphQL ?? params.passportLevel >= 1) // FIXME: This logic sucks.
-    ) {
+    if (isRequestTypeProxied(ProxyRequestType.GraphQLAll, params)) {
       return true;
     }
-    if (
-      !params.isChromium &&
-      !params.optimizedProxiesEnabled &&
-      (params.customPassport?.graphQL ?? params.passportLevel >= 2) // FIXME: This logic sucks.
-    ) {
-      return true;
-    }
-    // Proxy flagged GQL requests when passport is official+ (Chromium) or
-    // ordinary+ (Firefox).
     if (params.isChromium && params.fullModeEnabled === false) {
       return false;
     }
     if (!params.isChromium && params.isFlagged === false) {
       return false;
     }
-    if (params.isChromium) {
-      return params.customPassport?.graphQL ?? params.passportLevel >= 1;
-    } else {
-      return params.customPassport?.graphQL ?? params.passportLevel >= 0;
-    }
+    return (
+      isRequestTypeProxied(ProxyRequestType.GraphQLToken, params) ||
+      isRequestTypeProxied(ProxyRequestType.GraphQLIntegrity, params)
+    );
   }
 
   if (type === ProxyRequestType.TwitchWebpage) {
