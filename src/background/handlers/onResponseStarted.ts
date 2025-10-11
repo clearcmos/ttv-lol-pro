@@ -1,5 +1,6 @@
 import browser, { WebRequest } from "webextension-polyfill";
 import findChannelFromTwitchTvUrl from "../../common/ts/findChannelFromTwitchTvUrl";
+import findChannelFromUsherUrl from "../../common/ts/findChannelFromUsherUrl";
 import findChannelFromVideoWeaverUrl from "../../common/ts/findChannelFromVideoWeaverUrl";
 import getHostFromUrl from "../../common/ts/getHostFromUrl";
 import { normalizeIpAddress } from "../../common/ts/ipAddress";
@@ -73,58 +74,41 @@ export default async function onResponseStarted(
 
   // Usher requests.
   if (proxiedUsherRequest && usherHostRegex.test(host)) {
-    if (!proxy) return console.log(`❌ Did not proxy ${details.url}`);
-    console.log(`✅ Proxied ${details.url} through ${proxy}`);
+    let channelName = findChannelFromUsherUrl(details.url);
+    if (!channelName) {
+      try {
+        const tab = await browser.tabs.get(details.tabId);
+        channelName = findChannelFromTwitchTvUrl(tab.url);
+      } catch {}
+    }
+    await updateStreamStatus(channelName, proxy, errorMessage);
+
+    if (!proxy) {
+      return console.log(
+        `❌ Did not proxy ${details.url} (${channelName ?? "unknown"})`
+      );
+    }
+    console.log(
+      `✅ Proxied ${details.url} (${channelName ?? "unknown"}) through ${proxy}`
+    );
   }
 
   // Video-weaver requests.
   if (proxiedVideoWeaverRequest && videoWeaverHostRegex.test(host)) {
-    let tabUrl: string | undefined = undefined;
-    try {
-      const tab = await browser.tabs.get(details.tabId);
-      tabUrl = tab.url;
-    } catch {}
-    const channelName =
-      findChannelFromVideoWeaverUrl(details.url) ??
-      findChannelFromTwitchTvUrl(tabUrl);
-    const streamStatus = getStreamStatus(channelName);
-    const stats = streamStatus?.stats ?? { proxied: 0, notProxied: 0 };
+    let channelName = findChannelFromVideoWeaverUrl(details.url);
+    if (!channelName) {
+      try {
+        const tab = await browser.tabs.get(details.tabId);
+        channelName = findChannelFromTwitchTvUrl(tab.url);
+      } catch {}
+    }
+    await updateStreamStatus(channelName, proxy, errorMessage);
 
     if (!proxy) {
-      stats.notProxied++;
-      let reason = errorMessage ?? streamStatus?.reason ?? "";
-      try {
-        const proxySettings = await browser.proxy.settings.get({});
-        switch (proxySettings.levelOfControl) {
-          case "controlled_by_other_extensions":
-            reason = "Proxy settings controlled by other extension";
-            break;
-          case "not_controllable":
-            reason = "Proxy settings not controllable";
-            break;
-        }
-      } catch {}
-      setStreamStatus(channelName, {
-        proxied: false,
-        proxyHost: streamStatus?.proxyHost ? streamStatus.proxyHost : undefined,
-        proxyCountry: streamStatus?.proxyCountry,
-        reason,
-        stats,
-      });
-      console.log(
+      return console.log(
         `❌ Did not proxy ${details.url} (${channelName ?? "unknown"})`
       );
-      return;
     }
-
-    stats.proxied++;
-    setStreamStatus(channelName, {
-      proxied: true,
-      proxyHost: proxy,
-      proxyCountry: streamStatus?.proxyCountry,
-      reason: "",
-      stats,
-    });
     console.log(
       `✅ Proxied ${details.url} (${channelName ?? "unknown"}) through ${proxy}`
     );
@@ -181,4 +165,46 @@ function getProxyFromDetails(
     if (!proxyInfo || proxyInfo.type === "direct") return null;
     return getUrlFromProxyInfo(proxyInfo);
   }
+}
+
+async function updateStreamStatus(
+  channelName: string | null,
+  proxy: string | null,
+  errorMessage: string | null
+) {
+  const streamStatus = getStreamStatus(channelName);
+  const stats = streamStatus?.stats ?? { proxied: 0, notProxied: 0 };
+
+  if (!proxy) {
+    stats.notProxied++;
+    let reason = errorMessage ?? streamStatus?.reason ?? "";
+    try {
+      const proxySettings = await browser.proxy.settings.get({});
+      switch (proxySettings.levelOfControl) {
+        case "controlled_by_other_extensions":
+          reason = "Proxy settings controlled by other extension";
+          break;
+        case "not_controllable":
+          reason = "Proxy settings not controllable";
+          break;
+      }
+    } catch {}
+    setStreamStatus(channelName, {
+      proxied: false,
+      proxyHost: streamStatus?.proxyHost ? streamStatus.proxyHost : undefined,
+      proxyCountry: streamStatus?.proxyCountry,
+      reason,
+      stats,
+    });
+    return;
+  }
+
+  stats.proxied++;
+  setStreamStatus(channelName, {
+    proxied: true,
+    proxyHost: proxy,
+    proxyCountry: streamStatus?.proxyCountry,
+    reason: "",
+    stats,
+  });
 }

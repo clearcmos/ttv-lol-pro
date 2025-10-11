@@ -55,6 +55,15 @@ const passportLevelSliderElement = $(
   "#passport-level-slider"
 ) as HTMLInputElement;
 const passportLevelWarningElement = $("#passport-level-warning") as HTMLElement;
+const passportCustomGraphQLToken = $(
+  "#passport-custom-graphQLToken"
+) as HTMLInputElement;
+const passportCustomGraphQLIntegrity = $(
+  "#passport-custom-graphQLIntegrity"
+) as HTMLInputElement;
+const passportCustomGraphQLAllElement = $(
+  "#passport-custom-graphQLAll"
+) as HTMLInputElement;
 const anonymousModeCheckboxElement = $(
   "#anonymous-mode-checkbox"
 ) as HTMLInputElement;
@@ -186,6 +195,7 @@ function main() {
       updateProxySettings();
     }
     updateProxyUsage();
+    updateCustomPassportCheckboxes();
   });
   const customPassportCheckboxElements = $$(
     "input[type='checkbox'][name='passport-custom']"
@@ -200,9 +210,11 @@ function main() {
         updateProxySettings();
       }
       updateProxyUsage();
+      updateCustomPassportCheckboxes();
     });
   });
   updateProxyUsage();
+  updateCustomPassportCheckboxes();
   anonymousModeCheckboxElement.checked = store.state.anonymousMode;
   anonymousModeCheckboxElement.addEventListener("change", () => {
     store.state.anonymousMode = anonymousModeCheckboxElement.checked;
@@ -239,6 +251,7 @@ function main() {
       updateProxySettings();
     }
     updateProxyUsage();
+    updateCustomPassportCheckboxes();
   };
   optimizedProxiesInputElement.addEventListener("change", onProxyModeChange);
   normalProxiesInputElement.addEventListener("change", onProxyModeChange);
@@ -263,6 +276,9 @@ function main() {
 }
 
 function updateProxyUsage() {
+  let usageScore = 0;
+  let showPassportLevelWarning = false;
+
   const unflaggedRequestParams = {
     isChromium: isChromium,
     optimizedProxiesEnabled: store.state.optimizedProxiesEnabled,
@@ -278,28 +294,6 @@ function updateProxyUsage() {
     fullModeEnabled: true,
     isFlagged: true,
   };
-
-  if (
-    isRequestTypeProxied(ProxyRequestType.GraphQLAll, unflaggedRequestParams)
-  ) {
-    passportLevelProxyUsageSummaryElement.textContent = "🙁 High proxy usage";
-    passportLevelProxyUsageElement.dataset.usage = "high";
-    passportLevelWarningElement.style.display = "block";
-  } else if (
-    isRequestTypeProxied(
-      ProxyRequestType.GraphQLIntegrity,
-      unflaggedRequestParams
-    )
-  ) {
-    passportLevelProxyUsageSummaryElement.textContent = "😐 Medium proxy usage";
-    passportLevelProxyUsageElement.dataset.usage = "medium";
-    passportLevelWarningElement.style.display = "block";
-  } else {
-    passportLevelProxyUsageSummaryElement.textContent = "🙂 Low proxy usage";
-    passportLevelProxyUsageElement.dataset.usage = "low";
-    passportLevelWarningElement.style.display = "none";
-  }
-
   // Passport
   if (isRequestTypeProxied(ProxyRequestType.Passport, unflaggedRequestParams)) {
     passportLevelProxyUsagePassportElement.textContent = "All";
@@ -323,6 +317,7 @@ function updateProxyUsage() {
   );
   if (flaggedVideoWeaverProxied && unflaggedVideoWeaverProxied) {
     passportLevelProxyUsageVideoWeaverElement.textContent = "All";
+    usageScore += 1;
   } else if (flaggedVideoWeaverProxied && !unflaggedVideoWeaverProxied) {
     passportLevelProxyUsageVideoWeaverElement.textContent = "Few";
   } else {
@@ -333,6 +328,8 @@ function updateProxyUsage() {
     isRequestTypeProxied(ProxyRequestType.GraphQLAll, unflaggedRequestParams)
   ) {
     passportLevelProxyUsageGqlElement.textContent = "All";
+    usageScore += 1;
+    showPassportLevelWarning = true;
   } else if (
     isRequestTypeProxied(
       ProxyRequestType.GraphQLIntegrity,
@@ -340,6 +337,8 @@ function updateProxyUsage() {
     )
   ) {
     passportLevelProxyUsageGqlElement.textContent = "Some";
+    usageScore += 1;
+    showPassportLevelWarning = true;
   } else if (
     isRequestTypeProxied(ProxyRequestType.GraphQLToken, unflaggedRequestParams)
   ) {
@@ -355,6 +354,35 @@ function updateProxyUsage() {
   } else {
     passportLevelProxyUsageWwwElement.textContent = "None";
   }
+
+  switch (usageScore) {
+    case 0:
+      passportLevelProxyUsageSummaryElement.textContent = "🙂 Low proxy usage";
+      passportLevelProxyUsageElement.dataset.usage = "low";
+      break;
+    case 1:
+      passportLevelProxyUsageSummaryElement.textContent =
+        "😐 Medium proxy usage";
+      passportLevelProxyUsageElement.dataset.usage = "medium";
+      break;
+    default:
+      passportLevelProxyUsageSummaryElement.textContent = "🙁 High proxy usage";
+      passportLevelProxyUsageElement.dataset.usage = "high";
+      break;
+  }
+  passportLevelWarningElement.style.display = showPassportLevelWarning
+    ? "block"
+    : "none";
+}
+
+function updateCustomPassportCheckboxes() {
+  passportCustomGraphQLAllElement.disabled =
+    store.state.optimizedProxiesEnabled;
+  const disableTokenAndIntegrity =
+    !passportCustomGraphQLAllElement.disabled &&
+    passportCustomGraphQLAllElement.checked;
+  passportCustomGraphQLToken.disabled = disableTokenAndIntegrity;
+  passportCustomGraphQLIntegrity.disabled = disableTokenAndIntegrity;
 }
 
 function loadProxiesLists() {
