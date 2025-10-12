@@ -1,6 +1,6 @@
 import browser from "webextension-polyfill";
 import $ from "../common/ts/$";
-import loadExperience from "../common/ts/loadExperience";
+import setUserExperienceMode from "../common/ts/setUserExperienceMode";
 import store from "../store";
 import type { UserExperienceMode } from "../types";
 
@@ -30,11 +30,10 @@ setupFormElement.addEventListener("change", event => {
   if (!(event.target instanceof HTMLInputElement)) return;
   if (event.target.name !== "experience") return;
   const experienceMode = event.target.value as UserExperienceMode;
-  store.state.userExperienceMode = experienceMode;
   if (experienceMode === "expertMode") {
     expertModeSegmentElement.removeAttribute("hidden");
   }
-  loadExperience(experienceMode);
+  setUserExperienceMode(experienceMode);
 });
 
 setupFormElement.addEventListener("submit", async event => {

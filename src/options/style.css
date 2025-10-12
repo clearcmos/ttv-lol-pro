@@ -25,6 +25,10 @@
   --button-background-color-hover: #464953;
   --button-text-primary: #c3c4ca;
 
+  --switch-width: 32px;
+  --switch-height: 18px;
+  --switch-padding: 2px;
+
   --low-color: #06c157;
   --low-bg-color: #1e2421;
   --medium-color: #f9c643;
@@ -164,8 +168,43 @@ button:hover {
   background-color: var(--link-hover);
 }
 
+input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  top: -0.1em;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  margin: 2px 4px 2px 0;
+  padding: 0;
+  border-radius: var(--switch-height);
+  outline: none;
+  background: var(--button-background-color);
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background 100ms ease-in-out;
+}
+input[type="checkbox"]::before {
+  position: absolute;
+  top: var(--switch-padding);
+  left: var(--switch-padding);
+  width: calc(var(--switch-height) - 2 * var(--switch-padding));
+  height: calc(var(--switch-height) - 2 * var(--switch-padding));
+  border-radius: 50%;
+  background: white;
+  content: "";
+  transition: transform 100ms ease-in-out;
+}
+input[type="checkbox"]:checked {
+  background: var(--brand-color);
+}
+input[type="checkbox"]:checked::before {
+  transform: translateX(calc(var(--switch-width) - var(--switch-height)));
+}
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+}
 input[type="checkbox"]:disabled + label {
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
 fieldset {
@@ -230,8 +269,7 @@ input[type="radio"]:not(:checked) ~ .store-list {
 }
 .options-list > li > input[type="checkbox"] {
   position: absolute;
-  left: -1.6rem;
-  margin-top: 0.3rem;
+  left: calc(calc(var(--switch-width) + 8px) * -1);
 }
 
 .experience-container {
@@ -312,6 +350,10 @@ input[type="radio"]:not(:checked) ~ .store-list {
 #passport-level-container .grid-slider {
   grid-area: slider;
   max-width: var(--input-max-width);
+}
+#passport-level-container .grid-slider .expert-mode > fieldset {
+  margin: 0;
+  padding: 0;
 }
 
 #passport-level-slider {

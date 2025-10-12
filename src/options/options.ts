@@ -8,13 +8,13 @@ import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl"
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
 import isChromium from "../common/ts/isChromium";
 import isRequestTypeProxied from "../common/ts/isRequestTypeProxied";
-import loadExperience from "../common/ts/loadExperience";
 import { getProxyInfoFromUrl } from "../common/ts/proxyInfo";
 import {
   clearProxySettings,
   updateProxySettings,
 } from "../common/ts/proxySettings";
 import sendAdLog from "../common/ts/sendAdLog";
+import setUserExperienceMode from "../common/ts/setUserExperienceMode";
 import store from "../store";
 import getDefaultState from "../store/getDefaultState";
 import type { State } from "../store/types";
@@ -49,19 +49,25 @@ const exportButtonElement = $("#export-button") as HTMLButtonElement;
 const importButtonElement = $("#import-button") as HTMLButtonElement;
 const resetButtonElement = $("#reset-button") as HTMLButtonElement;
 // Experience
+const experienceInputElements = $$(
+  "input[type='radio'][name='experience']"
+) as NodeListOf<HTMLInputElement>;
 const expertModeSegmentElement = $("#expert-mode-segment") as HTMLDivElement;
 // Passport
 const passportLevelSliderElement = $(
   "#passport-level-slider"
 ) as HTMLInputElement;
 const passportLevelWarningElement = $("#passport-level-warning") as HTMLElement;
-const passportCustomGraphQLToken = $(
+const customPassportCheckboxElements = $$(
+  "input[type='checkbox'][name='passport-custom']"
+) as NodeListOf<HTMLInputElement>;
+const customPassportGraphQLTokenElement = $(
   "#passport-custom-graphQLToken"
 ) as HTMLInputElement;
-const passportCustomGraphQLIntegrity = $(
+const customPassportGraphQLIntegrityElement = $(
   "#passport-custom-graphQLIntegrity"
 ) as HTMLInputElement;
-const passportCustomGraphQLAllElement = $(
+const customPassportGraphQLAllElement = $(
   "#passport-custom-graphQLAll"
 ) as HTMLInputElement;
 const anonymousModeCheckboxElement = $(
@@ -141,7 +147,7 @@ const DEFAULT_LIST_OPTIONS: Readonly<ListOptions> = Object.freeze({
   getPromptPlaceholder: () => "Enter text to create a new item…",
   isAddAllowed: () => [true] as AllowedResult,
   isEditAllowed: () => [true] as AllowedResult,
-  focusPrompt: false, // Is set to `true` once the user has added an item.
+  focusPrompt: false, // Is set to `true` after the user has added an item.
   hidePromptMarker: false,
   insertMode: "append",
   spellcheck: false,
@@ -156,23 +162,106 @@ function main() {
     .querySelectorAll(isChromium ? ".firefox-only" : ".chromium-only")
     .forEach(element => element.remove());
   // Experience
-  const experienceInputElements = $$(
-    "input[type='radio'][name='experience']"
-  ) as NodeListOf<HTMLInputElement>;
+  if (store.state.userExperienceMode === "expertMode") {
+    expertModeSegmentElement.removeAttribute("hidden");
+  }
+  experienceInputElements.forEach(inputElement => {
+    inputElement.addEventListener("change", () => {
+      setUserExperienceMode(inputElement.value as UserExperienceMode);
+      updateUI();
+    });
+  });
+  // Passport
+  passportLevelSliderElement.addEventListener("input", () => {
+    store.state.passportLevel = parseInt(passportLevelSliderElement.value);
+    if (isChromium && store.state.chromiumProxyActive) {
+      updateProxySettings();
+    }
+    updatePassportUI();
+  });
+  customPassportCheckboxElements.forEach(checkbox => {
+    checkbox.addEventListener("change", () => {
+      store.state.customPassport[checkbox.value as keyof PassportConfig] =
+        checkbox.checked;
+      if (isChromium && store.state.chromiumProxyActive) {
+        updateProxySettings();
+      }
+      updatePassportUI();
+    });
+  });
+  anonymousModeCheckboxElement.addEventListener("change", () => {
+    store.state.anonymousMode = anonymousModeCheckboxElement.checked;
+  });
+  // Whitelisted channels
+  whitelistSubscriptionsCheckboxElement.addEventListener("change", () => {
+    const { checked } = whitelistSubscriptionsCheckboxElement;
+    store.state.whitelistChannelSubscriptions = checked;
+    if (!checked) {
+      // Clear active channel subscriptions to free up storage space.
+      store.state.activeChannelSubscriptions = [];
+    }
+  });
+  // Proxies
+  const onProxyModeChange = () => {
+    store.state.optimizedProxiesEnabled = optimizedProxiesInputElement.checked;
+    if (isChromium && store.state.chromiumProxyActive) {
+      updateProxySettings();
+    }
+    updatePassportUI();
+  };
+  optimizedProxiesInputElement.addEventListener("change", onProxyModeChange);
+  normalProxiesInputElement.addEventListener("change", onProxyModeChange);
+  otherProtocolsCheckboxElement.addEventListener("change", () => {
+    store.state.allowOtherProxyProtocols =
+      otherProtocolsCheckboxElement.checked;
+  });
+  // Ad log
+  adLogEnabledCheckboxElement.addEventListener("change", () => {
+    store.state.adLogEnabled = adLogEnabledCheckboxElement.checked;
+  });
+  adLogSendButtonElement.addEventListener("click", async () => {
+    const success = await sendAdLog();
+    if (success === null) {
+      return alert("No log entries to send.");
+    }
+    if (!success) {
+      return alert("Failed to send log.");
+    }
+    alert("Log sent successfully.");
+  });
+  adLogExportButtonElement.addEventListener("click", () => {
+    saveFile(
+      "ttv-lol-pro_ad-log.json",
+      JSON.stringify(store.state.adLog),
+      "application/json;charset=utf-8"
+    );
+  });
+  adLogClearButtonElement.addEventListener("click", () => {
+    const confirmation = confirm(
+      "Are you sure you want to clear the ad log? This cannot be undone."
+    );
+    if (!confirmation) return;
+    store.state.adLog = [];
+  });
+  // Footer
+  versionElement.textContent = `Version ${
+    browser.runtime.getManifest().version
+  }`;
+  // Main
+  updateUI(); // Load values from store into the UI.
+  mainElement.style.display = "block";
+}
+
+/**
+ * Updates the values of all options in the UI to match the values in the store.
+ */
+function updateUI() {
+  // Experience
   experienceInputElements.forEach(inputElement => {
     if (inputElement.value === store.state.userExperienceMode) {
       inputElement.checked = true;
-      if (store.state.userExperienceMode === "expertMode") {
-        expertModeSegmentElement.removeAttribute("hidden");
-      }
     }
-    inputElement.addEventListener("change", () => {
-      store.state.userExperienceMode = inputElement.value as UserExperienceMode;
-      loadExperience(store.state.userExperienceMode);
-      window.location.reload();
-    });
   });
-  loadExperience(store.state.userExperienceMode);
   $$(".block-ads").forEach(el => el.setAttribute("hidden", "true"));
   $$(".unlock-best-quality").forEach(el => el.setAttribute("hidden", "true"));
   $$(".expert-mode").forEach(el => el.setAttribute("hidden", "true"));
@@ -189,36 +278,12 @@ function main() {
   }
   // Passport
   passportLevelSliderElement.value = store.state.passportLevel.toString();
-  passportLevelSliderElement.addEventListener("input", () => {
-    store.state.passportLevel = parseInt(passportLevelSliderElement.value);
-    if (isChromium && store.state.chromiumProxyActive) {
-      updateProxySettings();
-    }
-    updateProxyUsage();
-    updateCustomPassportCheckboxes();
-  });
-  const customPassportCheckboxElements = $$(
-    "input[type='checkbox'][name='passport-custom']"
-  ) as NodeListOf<HTMLInputElement>;
   customPassportCheckboxElements.forEach(checkbox => {
     checkbox.checked =
       store.state.customPassport[checkbox.value as keyof PassportConfig];
-    checkbox.addEventListener("change", () => {
-      store.state.customPassport[checkbox.value as keyof PassportConfig] =
-        checkbox.checked;
-      if (isChromium && store.state.chromiumProxyActive) {
-        updateProxySettings();
-      }
-      updateProxyUsage();
-      updateCustomPassportCheckboxes();
-    });
   });
-  updateProxyUsage();
-  updateCustomPassportCheckboxes();
+  updatePassportUI();
   anonymousModeCheckboxElement.checked = store.state.anonymousMode;
-  anonymousModeCheckboxElement.addEventListener("change", () => {
-    store.state.anonymousMode = anonymousModeCheckboxElement.checked;
-  });
   // Whitelisted channels
   listInit(whitelistedChannelsListElement, "whitelistedChannels", {
     getAlreadyExistsAlertMessage: channelName =>
@@ -233,49 +298,20 @@ function main() {
   });
   whitelistSubscriptionsCheckboxElement.checked =
     store.state.whitelistChannelSubscriptions;
-  whitelistSubscriptionsCheckboxElement.addEventListener("change", () => {
-    const { checked } = whitelistSubscriptionsCheckboxElement;
-    store.state.whitelistChannelSubscriptions = checked;
-    if (!checked) {
-      // Clear active channel subscriptions to free up storage space.
-      store.state.activeChannelSubscriptions = [];
-    }
-  });
   // Proxies
   if (store.state.optimizedProxiesEnabled)
     optimizedProxiesInputElement.checked = true;
   else normalProxiesInputElement.checked = true;
-  const onProxyModeChange = () => {
-    store.state.optimizedProxiesEnabled = optimizedProxiesInputElement.checked;
-    if (isChromium && store.state.chromiumProxyActive) {
-      updateProxySettings();
-    }
-    updateProxyUsage();
-    updateCustomPassportCheckboxes();
-  };
-  optimizedProxiesInputElement.addEventListener("change", onProxyModeChange);
-  normalProxiesInputElement.addEventListener("change", onProxyModeChange);
   loadProxiesLists();
   otherProtocolsCheckboxElement.checked = store.state.allowOtherProxyProtocols;
-  otherProtocolsCheckboxElement.addEventListener("change", () => {
-    store.state.allowOtherProxyProtocols =
-      otherProtocolsCheckboxElement.checked;
-    loadProxiesLists();
-  });
   // Ad log
   adLogEnabledCheckboxElement.checked = store.state.adLogEnabled;
-  adLogEnabledCheckboxElement.addEventListener("change", () => {
-    store.state.adLogEnabled = adLogEnabledCheckboxElement.checked;
-  });
-  // Footer
-  versionElement.textContent = `Version ${
-    browser.runtime.getManifest().version
-  }`;
-  // Main
-  mainElement.style.display = "block";
 }
 
-function updateProxyUsage() {
+/**
+ * Updates the proxy usage information in the passport section of the UI.
+ */
+function updatePassportUI() {
   let usageScore = 0;
   let showPassportLevelWarning = false;
 
@@ -373,18 +409,20 @@ function updateProxyUsage() {
   passportLevelWarningElement.style.display = showPassportLevelWarning
     ? "block"
     : "none";
-}
 
-function updateCustomPassportCheckboxes() {
-  passportCustomGraphQLAllElement.disabled =
+  // Custom passport
+  customPassportGraphQLAllElement.disabled =
     store.state.optimizedProxiesEnabled;
   const disableTokenAndIntegrity =
-    !passportCustomGraphQLAllElement.disabled &&
-    passportCustomGraphQLAllElement.checked;
-  passportCustomGraphQLToken.disabled = disableTokenAndIntegrity;
-  passportCustomGraphQLIntegrity.disabled = disableTokenAndIntegrity;
+    !customPassportGraphQLAllElement.disabled &&
+    customPassportGraphQLAllElement.checked;
+  customPassportGraphQLTokenElement.disabled = disableTokenAndIntegrity;
+  customPassportGraphQLIntegrityElement.disabled = disableTokenAndIntegrity;
 }
 
+/**
+ * Initializes the optimized and normal proxies lists.
+ */
 function loadProxiesLists() {
   listInit(optimizedProxiesListElement, "optimizedProxies", {
     getPromptPlaceholder: insertMode => {
@@ -750,32 +788,7 @@ resetButtonElement.addEventListener("click", () => {
   window.location.reload(); // Reload page to update UI.
 });
 
-adLogSendButtonElement.addEventListener("click", async () => {
-  const success = await sendAdLog();
-  if (success === null) {
-    return alert("No log entries to send.");
-  }
-  if (!success) {
-    return alert("Failed to send log.");
-  }
-  alert("Log sent successfully.");
-});
-
-adLogExportButtonElement.addEventListener("click", () => {
-  saveFile(
-    "ttv-lol-pro_ad-log.json",
-    JSON.stringify(store.state.adLog),
-    "application/json;charset=utf-8"
-  );
-});
-
-adLogClearButtonElement.addEventListener("click", () => {
-  const confirmation = confirm(
-    "Are you sure you want to clear the ad log? This cannot be undone."
-  );
-  if (!confirmation) return;
-  store.state.adLog = [];
-});
+// Troubleshooting
 
 viewStatusOfProxiesButtonElement.addEventListener("click", () => {
   location.href = "https://status.perfprod.com/";
@@ -908,6 +921,7 @@ generateTwitchTabsReportButtonElement.addEventListener("click", async () => {
   );
 });
 
+// Expert mode activation by Konami code
 // From https://stackoverflow.com/a/31627191
 
 const konamiCode = [

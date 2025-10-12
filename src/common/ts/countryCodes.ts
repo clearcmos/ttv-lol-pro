@@ -1,4 +1,4 @@
-const alpha2 = {
+export const alpha2 = {
   AD: "Andorra",
   AE: "United Arab Emirates",
   AF: "Afghanistan",
@@ -26,7 +26,7 @@ const alpha2 = {
   BJ: "Benin",
   BL: "Saint Barthélemy",
   BM: "Bermuda",
-  BN: "Brunei Darussalam",
+  BN: "Brunei",
   BO: "Bolivia",
   BQ: "Bonaire, Sint Eustatius and Saba",
   BR: "Brazil",
@@ -250,5 +250,3 @@ const alpha2 = {
   ZM: "Zambia",
   ZW: "Zimbabwe",
 };
-
-export { alpha2 };

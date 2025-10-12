@@ -3,7 +3,15 @@ import type { ObjectEntries, UserExperienceMode } from "../../types";
 import isChromium from "./isChromium";
 import { updateProxySettings } from "./proxySettings";
 
-export default function loadExperience(experience: UserExperienceMode) {
+/**
+ * Safely set the user experience mode and override options accordingly.
+ * @param experienceMode
+ */
+export default function setUserExperienceMode(
+  experienceMode: UserExperienceMode
+) {
+  if (experienceMode === store.state.userExperienceMode) return;
+
   // Restore overridden options to the state.
   const typedEntries = Object.entries(
     store.state.userExperienceOverridenOptions
@@ -15,7 +23,7 @@ export default function loadExperience(experience: UserExperienceMode) {
   }
   store.state.userExperienceOverridenOptions = {};
 
-  switch (experience) {
+  switch (experienceMode) {
     case "blockAds":
       store.state.customPassportEnabled = false;
       break;
@@ -47,6 +55,7 @@ export default function loadExperience(experience: UserExperienceMode) {
       break;
   }
 
+  store.state.userExperienceMode = experienceMode;
   if (isChromium && store.state.chromiumProxyActive) {
     updateProxySettings();
   }
