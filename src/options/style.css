@@ -292,7 +292,7 @@ input[type="radio"]:not(:checked) ~ .store-list {
   left: 50%;
   align-items: center;
   justify-content: center;
-  width: max-content;
+  width: fit-content;
   margin: 2rem 0;
   padding: 0;
   overflow: hidden;
