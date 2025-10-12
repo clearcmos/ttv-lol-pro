@@ -108,6 +108,9 @@ function setProxyStatus(
     proxiedElement.classList.add("error");
     proxiedElement.title = "Not proxying";
   }
+  if (!proxiedElement.classList.contains("pulsing")) {
+    proxiedElement.classList.add("pulsing");
+  }
   // Channel name
   channelNameElement.textContent = channelNameLower;
   // Reason
@@ -168,6 +171,10 @@ function setWhitelistStatus(channelNameLower: string, isWhitelisted: boolean) {
   whitelistStatusElement.setAttribute("data-whitelisted", `${isWhitelisted}`);
   whitelistToggleElement.checked = isWhitelisted;
 }
+
+proxiedElement.addEventListener("animationend", () => {
+  proxiedElement.classList.remove("pulsing");
+});
 
 whitelistToggleElement.addEventListener("change", e => {
   const channelNameLower = whitelistStatusElement.getAttribute("data-channel");

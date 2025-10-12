@@ -12,6 +12,7 @@
   --success-color: #43b581;
   --warning-color: #faa61a;
   --warning-background-color: #faa61a4d;
+  --idle-color: #777;
   --error-color: #f04747;
   --whitelisted-color: #baaadb;
   --link: #be68ce;
@@ -110,25 +111,61 @@ a:visited:hover {
     "top-left top-right"
     "middle-left middle-right"
     "bottom-left bottom-right";
+  column-gap: 10px;
   padding: 15px;
 }
 /* Proxy status icon */
 #stream-status #proxied {
   display: flex;
+  z-index: 0;
+  position: relative;
   grid-area: top-left;
   align-items: center;
   justify-content: center;
-  margin-right: 10px;
   cursor: help;
 }
-#stream-status #proxied.success {
-  color: var(--success-color);
+#stream-status #proxied #proxied-dot-shadow {
+  z-index: -1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%) scale(1);
+  border-radius: 50%;
+  background-color: var(--background-secondary);
+  opacity: 0;
 }
-#stream-status #proxied.idle {
-  color: #999;
+#stream-status #proxied #proxied-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--background-secondary);
 }
-#stream-status #proxied.error {
-  color: var(--error-color);
+#stream-status #proxied.pulsing #proxied-dot-shadow {
+  animation: pulse-shadow 500ms ease-out;
+}
+#stream-status #proxied.success #proxied-dot-shadow,
+#stream-status #proxied.success #proxied-dot {
+  background-color: var(--success-color);
+}
+#stream-status #proxied.idle #proxied-dot-shadow,
+#stream-status #proxied.idle #proxied-dot {
+  background-color: var(--idle-color);
+}
+#stream-status #proxied.error #proxied-dot-shadow,
+#stream-status #proxied.error #proxied-dot {
+  background-color: var(--error-color);
+}
+@keyframes pulse-shadow {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.25);
+    opacity: 0;
+  }
 }
 /* Proxy status channel name */
 #stream-status #channel-name {
