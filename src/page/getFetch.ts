@@ -584,34 +584,66 @@ export function getFetch(pageState: PageState): typeof fetch {
       // Check if response contains midroll ad.
       responseBody ??= await readResponseBody();
       const responseBodyLower = responseBody.toLowerCase();
-      if (
-        responseBodyLower.includes("stitched-ad") &&
-        responseBodyLower.includes("midroll")
-      ) {
-        console.log("[TTV LOL PRO] Midroll ad detected.");
-        manifest.consecutiveMidrollResponses += 1;
-        manifest.consecutiveMidrollCooldown = 15;
+      if (responseBodyLower.includes("stitched-ad")) {
         await waitForStore(pageState);
-        const shouldUpdateReplacementMap =
-          pageState.state?.optimizedProxiesEnabled === true &&
-          manifest.consecutiveMidrollResponses <= 2 && // Avoid infinite loop.
-          !videoWeaverUrlsToNotProxy.has(url);
-        if (shouldUpdateReplacementMap) {
-          const success = await updateVideoWeaverReplacementMap(
-            pageState,
-            cachedUsherRequestUrl,
-            manifest
-          );
-          if (success) cancelRequest();
-        }
-        manifest.replacementMap = null;
-      } else {
-        if (manifest.consecutiveMidrollCooldown > 0) {
-          // Avoid infinite loop if Twitch doesn't send an ad right away but sends one within a few requests.
-          manifest.consecutiveMidrollCooldown -= 1;
+
+        if (responseBodyLower.includes("midroll")) {
+          console.log("[TTV LOL PRO] Midroll ad detected.");
+          manifest.consecutiveMidrollResponses += 1;
+          manifest.consecutiveMidrollCooldown = 15;
+          const shouldUpdateReplacementMap =
+            pageState.state?.optimizedProxiesEnabled === true &&
+            manifest.consecutiveMidrollResponses <= 2 && // Avoid infinite loop.
+            !videoWeaverUrlsToNotProxy.has(url);
+          if (shouldUpdateReplacementMap) {
+            const success = await updateVideoWeaverReplacementMap(
+              pageState,
+              cachedUsherRequestUrl,
+              manifest
+            );
+            if (success) cancelRequest();
+          }
+          manifest.replacementMap = null;
         } else {
-          // No ad, clear attempts.
-          manifest.consecutiveMidrollResponses = 0;
+          if (manifest.consecutiveMidrollCooldown > 0) {
+            // Avoid infinite loop if Twitch doesn't send an ad right away but sends one within a few requests.
+            manifest.consecutiveMidrollCooldown -= 1;
+          } else {
+            // No ad, clear attempts.
+            manifest.consecutiveMidrollResponses = 0;
+          }
+        }
+
+        if (pageState.state?.adLogEnabled === true) {
+          const lines = responseBody.split("\n");
+          const line = lines.find(
+            line =>
+              line.toLowerCase().includes("preroll") ||
+              line.toLowerCase().includes("midroll")
+          );
+          if (line) {
+            const parser = new m3u8Parser.Parser();
+            parser.push(line);
+            parser.end();
+            const dateRange = parser.manifest.dateRanges?.[0];
+            const parsedLine = dateRange
+              ? {
+                  adRollType: dateRange.xTvTwitchAdRollType,
+                  adUrl: dateRange.xTvTwitchAdUrl,
+                  adClickTrackingUrl: dateRange.xTvTwitchAdClickTrackingUrl,
+                  adLineItemId: dateRange.xTvTwitchAdLineItemId,
+                  adCommercialId: dateRange.xTvTwitchAdCommercialId,
+                }
+              : undefined;
+            pageState.sendMessageToContentScript({
+              type: MessageType.UpdateAdLog,
+              timestamp: Date.now(),
+              channelName: manifest.channelName,
+              videoWeaverUrl: url,
+              rawLine: line,
+              parsedLine,
+            });
+          }
         }
       }
       //#endregion

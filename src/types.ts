@@ -21,21 +21,23 @@ export interface ProxyInfo {
   connectionIsolationKey?: string;
 }
 
-export const enum AdType {
-  PREROLL = "preroll",
-  MIDROLL = "midroll",
-}
-
 export interface AdLogEntry {
-  adType: AdType;
-  isPurpleScreen: boolean;
-  proxy: string | null;
-  channel: string | null;
-  passportLevel: number;
-  anonymousMode: boolean;
   timestamp: number;
-  videoWeaverHost: string;
+  channelName: string | null;
   videoWeaverUrl: string;
+  rawLine: string;
+  parsedLine?: {
+    adRollType: "PREROLL" | "MIDROLL";
+    adUrl: string;
+    adClickTrackingUrl: string;
+    adLineItemId: string;
+    adCommercialId?: string;
+  };
+  adIdentity?: {
+    advertiserName: string;
+    payerName: string;
+    isIdentityVerified: boolean;
+  };
 }
 
 export interface StreamStatus {
@@ -91,6 +93,7 @@ export const enum MessageType {
   ChannelSubStatusChange = "TLP_ChannelSubStatusChange",
   MultipleAdBlockersInUse = "TLP_MultipleAdBlockersInUse",
   ClearStats = "TLP_ClearStats",
+  UpdateAdLog = "TLP_UpdateAdLog",
 }
 
 export const enum ProxyRequestType {

@@ -3,7 +3,6 @@ import isChromium from "../common/ts/isChromium";
 import checkForOpenedTwitchTabs from "./handlers/checkForOpenedTwitchTabs";
 import onAuthRequired from "./handlers/onAuthRequired";
 import onBeforeSendHeaders from "./handlers/onBeforeSendHeaders";
-import onBeforeVideoWeaverRequest from "./handlers/onBeforeVideoWeaverRequest";
 import onContentScriptMessage from "./handlers/onContentScriptMessage";
 import onInstalled from "./handlers/onInstalled";
 import onProxyRequest from "./handlers/onProxyRequest";
@@ -90,14 +89,5 @@ if (isChromium) {
       ],
     },
     ["blocking", "requestHeaders"]
-  );
-
-  // Check for ads in Video Weaver responses.
-  browser.webRequest.onBeforeRequest.addListener(
-    onBeforeVideoWeaverRequest,
-    {
-      urls: ["https://*.live-video.net/*", "https://*.ttvnw.net/*"],
-    },
-    ["blocking"]
   );
 }

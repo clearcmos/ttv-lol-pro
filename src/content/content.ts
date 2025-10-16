@@ -8,7 +8,7 @@ import isChromium from "../common/ts/isChromium";
 import { getStreamStatus, setStreamStatus } from "../common/ts/streamStatus";
 import store from "../store";
 import type { State } from "../store/types";
-import { MessageType } from "../types";
+import { AdLogEntry, MessageType } from "../types";
 
 console.info("[TTV LOL PRO] Content script running.");
 
@@ -222,5 +222,30 @@ function onPageMessage(event: MessageEvent) {
   // ---
   else if (message.type === MessageType.ClearStats) {
     clearStats(message.channelName, 2000);
+  }
+  // ---
+  else if (message.type === MessageType.UpdateAdLog) {
+    const isDuplicate = store.state.adLog.some(
+      entry =>
+        entry.videoWeaverUrl === message.videoWeaverUrl &&
+        message.timestamp - entry.timestamp < 1000 * 30 // 30 seconds
+    );
+    if (isDuplicate) return;
+    const entry: AdLogEntry = {
+      timestamp: message.timestamp,
+      channelName: message.channelName,
+      videoWeaverUrl: message.videoWeaverUrl,
+      rawLine: message.rawLine,
+      parsedLine: message.parsedLine,
+    };
+    store.state.adLog.push(entry);
+    if (store.state.adLog.length > 100) {
+      // Keep only the last 100 entries.
+      store.state.adLog.splice(0, store.state.adLog.length - 100);
+    }
+    console.log(
+      `[TTV LOL PRO] Ad log updated (${store.state.adLog.length} entries).`,
+      entry
+    );
   }
 }

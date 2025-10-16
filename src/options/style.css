@@ -155,16 +155,22 @@ button {
   cursor: pointer;
   transition: background-color 100ms ease-in-out;
 }
-input[type="button"]:hover,
-input[type="submit"]:hover,
-button:hover {
+input[type="button"]:hover:not(:disabled),
+input[type="submit"]:hover:not(:disabled),
+button:hover:not(:disabled) {
   background-color: var(--button-background-color-hover);
+}
+input[type="button"]:disabled,
+input[type="submit"]:disabled,
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 .button-primary {
   background-color: var(--brand-color);
   color: #ffffff;
 }
-.button-primary:hover {
+.button-primary:hover:not(:disabled) {
   background-color: var(--link-hover);
 }
 

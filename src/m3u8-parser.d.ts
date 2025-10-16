@@ -4,7 +4,7 @@ declare module "m3u8-parser" {
     allowCache: boolean;
     endList?: boolean;
     mediaSequence?: number;
-    dateRanges: [];
+    dateRanges: { [key: string]: unknown }[];
     discontinuitySequence?: number;
     playlistType?: string;
     custom?: {};

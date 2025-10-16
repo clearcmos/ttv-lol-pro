@@ -3,6 +3,7 @@ import browser from "webextension-polyfill";
 import onStartupStoreCleanup from "../background/handlers/onStartupStoreCleanup";
 import $ from "../common/ts/$";
 import $$ from "../common/ts/$$";
+import { sendAdLog } from "../common/ts/adLog";
 import { readFile, saveFile } from "../common/ts/file";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
@@ -13,7 +14,6 @@ import {
   clearProxySettings,
   updateProxySettings,
 } from "../common/ts/proxySettings";
-import sendAdLog from "../common/ts/sendAdLog";
 import setUserExperienceMode from "../common/ts/setUserExperienceMode";
 import store from "../store";
 import getDefaultState from "../store/getDefaultState";

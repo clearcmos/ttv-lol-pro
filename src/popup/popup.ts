@@ -1,8 +1,10 @@
 import Bowser from "bowser";
 import browser from "webextension-polyfill";
 import $ from "../common/ts/$";
+import { resolveAdIdentity } from "../common/ts/adLog";
 import { alpha2 } from "../common/ts/countryCodes";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
+import getHostFromUrl from "../common/ts/getHostFromUrl";
 import {
   anonymizeIpAddress,
   anonymizeIpAddresses,
@@ -195,85 +197,125 @@ whitelistToggleElement.addEventListener("change", e => {
 });
 
 copyDebugInfoButtonElement.addEventListener("click", async e => {
-  const extensionInfo = await browser.management.getSelf();
-  const userAgentParser = Bowser.getParser(window.navigator.userAgent);
-  const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-  const activeTab = tabs[0];
-  const channelName =
-    activeTab?.url != null ? findChannelFromTwitchTvUrl(activeTab.url) : null;
-  const channelNameLower =
-    channelName != null ? channelName.toLowerCase() : null;
-  const isWhitelisted =
-    channelNameLower != null ? isChannelWhitelisted(channelNameLower) : null;
-  const status =
-    channelNameLower != null
-      ? store.state.streamStatuses[channelNameLower]
-      : null;
-  const proxySettings = await browser.proxy.settings.get({});
-  const anonymizeAdLogEntry = (adLog: AdLogEntry) => ({
-    ...adLog,
-    proxy:
-      adLog.proxy != null && !e.shiftKey
-        ? anonymizeIpAddress(adLog.proxy)
-        : adLog.proxy,
-    videoWeaverUrl: undefined,
-  });
-
-  const debugInfo = [
-    `**Debug Info**\n`,
-    `Extension: ${extensionInfo.name} v${extensionInfo.version} (${extensionInfo.installType})\n`,
-    `Browser: ${userAgentParser.getBrowserName()} ${userAgentParser.getBrowserVersion()} (${userAgentParser.getOSName()} ${userAgentParser.getOSVersion()})\n`,
-    `Options:\n`,
-    `- User experience: ${store.state.userExperienceMode}\n`,
-    store.state.customPassportEnabled
-      ? `- Custom passport: ${JSON.stringify(store.state.customPassport)}\n`
-      : `- Passport level: ${store.state.passportLevel}\n`,
-    `- Anonymous mode: ${store.state.anonymousMode}\n`,
-    store.state.optimizedProxiesEnabled
-      ? `- Using optimized proxies: ${JSON.stringify(
-          e.shiftKey
-            ? store.state.optimizedProxies
-            : anonymizeIpAddresses(store.state.optimizedProxies)
-        )}\n`
-      : `- Using normal proxies: ${JSON.stringify(
-          e.shiftKey
-            ? store.state.normalProxies
-            : anonymizeIpAddresses(store.state.normalProxies)
-        )}\n`,
-    channelName != null
-      ? [
-          `Channel name: ${channelName}${
-            isWhitelisted ? " (whitelisted)" : ""
-          }\n`,
-          `Stream status:\n`,
-          status != null
-            ? [
-                `- Reason: ${status.reason ?? "N/A"}\n`,
-                `- Proxied: ${status.stats?.proxied ?? "N/A"}, Not proxied: ${
-                  status.stats?.notProxied ?? "N/A"
-                }\n`,
-                `- Proxy: ${
-                  status.proxyHost != null
-                    ? anonymizeIpAddress(status.proxyHost)
-                    : "N/A"
-                }\n`,
-                `- Country: ${status.proxyCountry ?? "N/A"}\n`,
-              ].join("")
-            : "",
-          `Proxy level of control: ${proxySettings.levelOfControl}\n`,
-        ].join("")
-      : "",
-    store.state.adLog.length > 0
-      ? `Latest ad log entry: ${JSON.stringify(
-          anonymizeAdLogEntry(store.state.adLog[store.state.adLog.length - 1])
-        )}\n`
-      : "",
-  ].join("");
+  copyDebugInfoButtonDescriptionElement.textContent =
+    "Generating debug info...";
 
   try {
+    const extensionInfo = await browser.management.getSelf();
+    const userAgentParser = Bowser.getParser(window.navigator.userAgent);
+    const tabs = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    const activeTab = tabs[0];
+    const channelName =
+      activeTab?.url != null ? findChannelFromTwitchTvUrl(activeTab.url) : null;
+    const channelNameLower =
+      channelName != null ? channelName.toLowerCase() : null;
+    const isWhitelisted =
+      channelNameLower != null ? isChannelWhitelisted(channelNameLower) : null;
+    const status =
+      channelNameLower != null
+        ? store.state.streamStatuses[channelNameLower]
+        : null;
+    const proxySettings = await browser.proxy.settings.get({});
+    const latestAdLogEntry = await getLatestAdLogEntry(channelName, !e.ctrlKey);
+
+    const debugInfo = [
+      `**Debug Info**\n`,
+      `Extension: ${extensionInfo.name} v${extensionInfo.version} (${extensionInfo.installType})\n`,
+      `Browser: ${userAgentParser.getBrowserName()} ${userAgentParser.getBrowserVersion()} (${userAgentParser.getOSName()} ${userAgentParser.getOSVersion()})\n`,
+      `Options:\n`,
+      `- User experience: ${store.state.userExperienceMode}\n`,
+      store.state.customPassportEnabled
+        ? `- Custom passport: ${JSON.stringify(store.state.customPassport)}\n`
+        : `- Passport level: ${store.state.passportLevel}\n`,
+      `- Anonymous mode: ${store.state.anonymousMode}\n`,
+      store.state.optimizedProxiesEnabled
+        ? `- Using optimized proxies: ${JSON.stringify(
+            e.shiftKey
+              ? store.state.optimizedProxies
+              : anonymizeIpAddresses(store.state.optimizedProxies)
+          )}\n`
+        : `- Using normal proxies: ${JSON.stringify(
+            e.shiftKey
+              ? store.state.normalProxies
+              : anonymizeIpAddresses(store.state.normalProxies)
+          )}\n`,
+      channelName != null
+        ? [
+            `Channel name: ${channelName}${
+              isWhitelisted ? " (whitelisted)" : ""
+            }\n`,
+            `Stream status:\n`,
+            status != null
+              ? [
+                  `- Reason: ${status.reason ?? "N/A"}\n`,
+                  `- Proxied: ${status.stats?.proxied ?? "N/A"}, Not proxied: ${
+                    status.stats?.notProxied ?? "N/A"
+                  }\n`,
+                  `- Proxy: ${
+                    status.proxyHost != null
+                      ? anonymizeIpAddress(status.proxyHost)
+                      : "N/A"
+                  }\n`,
+                  `- Country: ${status.proxyCountry ?? "N/A"}\n`,
+                ].join("")
+              : "",
+            `Proxy level of control: ${proxySettings.levelOfControl}\n`,
+          ].join("")
+        : "",
+      latestAdLogEntry
+        ? [
+            `Latest ad log entry (${new Date(
+              latestAdLogEntry.timestamp
+            ).toISOString()}):\n`,
+            `- Channel name: ${latestAdLogEntry.channelName}\n`,
+            `- Video Weaver host: ${getHostFromUrl(
+              latestAdLogEntry.videoWeaverUrl
+            )}\n`,
+            `- Ad attributes: ${
+              latestAdLogEntry.parsedLine
+                ? JSON.stringify(latestAdLogEntry.parsedLine)
+                : "N/A"
+            }\n`,
+            `- Ad identity: ${
+              latestAdLogEntry.adIdentity
+                ? JSON.stringify(latestAdLogEntry.adIdentity)
+                : "N/A"
+            }\n`,
+          ].join("")
+        : "",
+    ].join("");
+
     await navigator.clipboard.writeText(debugInfo);
     copyDebugInfoButtonDescriptionElement.textContent = "Copied to clipboard!";
   } catch (error) {
-    copyDebugInfoButtonDescriptionElement.textContent = `Failed to copy to clipboard: ${error}`;
+    copyDebugInfoButtonDescriptionElement.textContent = `Failed to copy: ${error}`;
   }
 });
+
+/**
+ * Get the latest ad log entry and resolve ad identity.
+ * @param channelNameLower
+ * @returns The latest ad log entry or null if there are no entries.
+ */
+async function getLatestAdLogEntry(
+  channelNameLower: string | null,
+  shouldResolveAdIdentity: boolean
+): Promise<AdLogEntry | null> {
+  if (store.state.adLog.length === 0) return null;
+  let entryIndex = store.state.adLog.length - 1;
+  if (channelNameLower) {
+    for (let i = entryIndex; i >= 0; i--) {
+      if (
+        store.state.adLog[i].channelName?.toLowerCase() === channelNameLower
+      ) {
+        entryIndex = i;
+        break;
+      }
+    }
+  }
+  if (shouldResolveAdIdentity) await resolveAdIdentity(entryIndex);
+  return store.state.adLog[entryIndex];
+}
