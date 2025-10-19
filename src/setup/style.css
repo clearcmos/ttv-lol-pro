@@ -54,16 +54,16 @@ button {
   cursor: pointer;
   transition: background-color 100ms ease-in-out;
 }
-input[type="button"]:hover,
-input[type="submit"]:hover,
-button:hover {
+input[type="button"]:hover:enabled,
+input[type="submit"]:hover:enabled,
+button:hover:enabled {
   background-color: var(--button-background-color-hover);
 }
 .button-primary {
   background-color: var(--brand-color);
   color: #ffffff;
 }
-.button-primary:hover {
+.button-primary:hover:enabled {
   background-color: var(--link-hover);
 }
 
@@ -149,7 +149,12 @@ header .title {
   border-radius: 100vmax;
   background-color: var(--input-background-color);
 }
+.segmented-control:has(.segment input:focus-visible) {
+  border: 1px solid white;
+  outline: 1px solid white;
+}
 .segmented-control .segment {
+  position: relative;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -157,7 +162,9 @@ header .title {
   text-align: center;
 }
 .segmented-control .segment input {
-  display: none;
+  appearance: none;
+  position: absolute;
+  top: -100vmax;
 }
 .segmented-control .segment label {
   display: block;

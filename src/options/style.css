@@ -156,9 +156,9 @@ button {
   cursor: pointer;
   transition: background-color 100ms ease-in-out;
 }
-input[type="button"]:hover:not(:disabled),
-input[type="submit"]:hover:not(:disabled),
-button:hover:not(:disabled) {
+input[type="button"]:hover:enabled,
+input[type="submit"]:hover:enabled,
+button:hover:enabled {
   background-color: var(--button-background-color-hover);
 }
 input[type="button"]:disabled,
@@ -171,7 +171,7 @@ button:disabled {
   background-color: var(--brand-color);
   color: #ffffff;
 }
-.button-primary:hover:not(:disabled) {
+.button-primary:hover:enabled {
   background-color: var(--link-hover);
 }
 
@@ -207,7 +207,11 @@ input[type="checkbox"]:checked {
 input[type="checkbox"]:checked::before {
   transform: translateX(calc(var(--switch-width) - var(--switch-height)));
 }
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid white;
+}
 input[type="checkbox"]:disabled {
+  cursor: not-allowed;
   opacity: 0.5;
 }
 input[type="checkbox"]:disabled + label {
@@ -291,14 +295,15 @@ input[type="radio"]:not(:checked) ~ .store-list {
 .store-list > li > .move-buttons-container > button {
   margin: 0;
   padding: 0;
+  border-radius: 100vmax;
   background-color: unset;
   color: var(--input-text-secondary);
   font-size: 11pt;
   cursor: pointer;
   transition: color 100ms ease-in-out;
 }
-.store-list > li > .move-buttons-container > button:hover {
-  background-color: unset;
+.store-list > li > .move-buttons-container > button:hover:enabled,
+.store-list > li > .move-buttons-container > button:focus {
   color: var(--input-text-primary);
 }
 
@@ -344,13 +349,20 @@ input[type="radio"]:not(:checked) ~ .store-list {
   border-radius: 100vmax;
   background-color: var(--input-background-color);
 }
+.experience-container .segmented-control:has(.segment input:focus-visible) {
+  border: 1px solid white;
+  outline: 1px solid white;
+}
 .experience-container .segmented-control .segment {
+  position: relative;
   overflow: hidden;
   border-radius: 100vmax;
   text-align: center;
 }
 .experience-container .segmented-control .segment input {
-  display: none;
+  appearance: none;
+  position: absolute;
+  top: -100vmax;
 }
 .experience-container .segmented-control .segment label {
   display: block;
@@ -433,16 +445,25 @@ input[type="radio"]:not(:checked) ~ .store-list {
   border-radius: 18px;
   background-color: var(--input-background-color);
 }
+#passport-level-proxy-usage:has(
+    #passport-level-proxy-usage-summary:focus-visible
+  ) {
+  outline-style: solid;
+  outline-width: 1px;
+}
 #passport-level-proxy-usage[data-usage="low"] {
   border-color: var(--low-color);
+  outline-color: var(--low-color);
   background-color: var(--low-bg-color);
 }
 #passport-level-proxy-usage[data-usage="medium"] {
   border-color: var(--medium-color);
+  outline-color: var(--medium-color);
   background-color: var(--medium-bg-color);
 }
 #passport-level-proxy-usage[data-usage="high"] {
   border-color: var(--high-color);
+  outline-color: var(--high-color);
   background-color: var(--high-bg-color);
 }
 

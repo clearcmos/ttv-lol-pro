@@ -1,22 +1,31 @@
 :root {
-  --popup-width: 310px;
-  --font-family: "Inter", "Roobert", "Helvetica Neue", Helvetica, Arial,
-    sans-serif;
-
   --background: #151619;
   --background-secondary: #202127;
   --background-tertiary: #292b32;
+  --popup-width: 310px;
+
+  --font-family: "Inter", "Roobert", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
+
+  --brand-color: #aa51b8;
+  --text-color: #c9cbcd;
+  --link: #be68ce;
+  --link-hover: #cc88d8;
 
   --border-radius: 8px;
-  --text-color: #c9cbcd;
-  --success-color: #43b581;
+
   --warning-color: #faa61a;
   --warning-background-color: #faa61a4d;
+  --success-color: #43b581;
   --idle-color: #777;
   --error-color: #f04747;
   --whitelisted-color: #baaadb;
-  --link: #be68ce;
-  --link-hover: #cc88d8;
+}
+
+::-moz-selection,
+::selection {
+  background-color: var(--brand-color);
+  color: #ffffff;
 }
 
 body {
@@ -25,6 +34,7 @@ body {
   padding: 0;
   background-color: var(--background);
   color: var(--text-color);
+  accent-color: var(--brand-color);
   font-family: var(--font-family);
 }
 
@@ -40,8 +50,6 @@ main {
 main > * {
   width: 100%;
   margin: 0;
-  overflow: hidden;
-  border-radius: var(--border-radius);
 }
 
 a,
@@ -100,7 +108,6 @@ a:visited:hover {
 #stream-status {
   display: none;
   flex-direction: column;
-  background-color: var(--background-secondary);
 }
 /* Proxy status */
 #stream-status #proxy-status {
@@ -113,6 +120,9 @@ a:visited:hover {
     "bottom-left bottom-right";
   column-gap: 10px;
   padding: 15px;
+  border-top-right-radius: var(--border-radius);
+  border-top-left-radius: var(--border-radius);
+  background-color: var(--background-secondary);
 }
 /* Proxy status icon */
 #stream-status #proxied {
@@ -197,8 +207,11 @@ a:visited:hover {
 }
 /* Whitelist status */
 #whitelist-status {
+  position: relative;
   height: 40px;
   border-top: 1px solid #3d4042;
+  border-bottom-right-radius: var(--border-radius);
+  border-bottom-left-radius: var(--border-radius);
   background-color: var(--background-secondary);
   text-align: center;
   transition: background-color 100ms ease-in-out;
@@ -206,9 +219,14 @@ a:visited:hover {
 #whitelist-status:hover {
   background-color: var(--background-tertiary);
 }
+#whitelist-status:has(#whitelist-toggle:focus-visible) {
+  outline: 2px solid white;
+}
 /* Whitelist toggle */
 #whitelist-toggle {
-  display: none;
+  appearance: none;
+  position: absolute;
+  bottom: -100vmax;
 }
 /* Whitelist toggle icon */
 #whitelist-status #whitelist-toggle-icon {
@@ -264,9 +282,17 @@ a:visited:hover {
 .list li {
   border-bottom: 1px solid #3d4042;
 }
-
 .list li:last-child {
   border-bottom: none;
+}
+
+.list li:first-child .list-item {
+  border-top-right-radius: var(--border-radius);
+  border-top-left-radius: var(--border-radius);
+}
+.list li:last-child .list-item {
+  border-bottom-right-radius: var(--border-radius);
+  border-bottom-left-radius: var(--border-radius);
 }
 
 .list .list-item,
