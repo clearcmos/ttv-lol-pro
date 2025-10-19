@@ -54,6 +54,7 @@ body {
   font-family: var(--font-primary);
 }
 body > .container:first-child {
+  z-index: 0;
   width: min(100%, var(--container-width));
   margin: 0 auto;
   background-color: var(--container-background-color);
@@ -259,10 +260,46 @@ li.hide-marker::marker {
 input[type="radio"]:not(:checked) ~ .store-list {
   opacity: 0.5;
 }
-.store-list > li > input {
-  width: 100%;
+.store-list > li {
+  position: relative;
   max-width: var(--input-max-width);
   margin-bottom: 0.25rem;
+}
+.store-list > li > input {
+  width: 100%;
+}
+.store-list > li > .move-buttons-container {
+  display: none;
+  z-index: 1;
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  flex-direction: row;
+  padding: 0.25rem;
+  gap: 0.25rem;
+  transform: translateY(-50%);
+  background-color: var(--input-background-color);
+}
+.store-list > li:hover > .move-buttons-container,
+.store-list > li:focus-within > .move-buttons-container {
+  display: flex;
+}
+.store-list > li:hover > input,
+.store-list > li:focus-within > input {
+  padding-right: 2.75rem;
+}
+.store-list > li > .move-buttons-container > button {
+  margin: 0;
+  padding: 0;
+  background-color: unset;
+  color: var(--input-text-secondary);
+  font-size: 11pt;
+  cursor: pointer;
+  transition: color 100ms ease-in-out;
+}
+.store-list > li > .move-buttons-container > button:hover {
+  background-color: unset;
+  color: var(--input-text-primary);
 }
 
 .options-list {

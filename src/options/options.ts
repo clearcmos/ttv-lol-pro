@@ -562,24 +562,32 @@ function listInit(
 ) {
   listElement.innerHTML = ""; // Reset list element.
   const listOptions: ListOptions = { ...DEFAULT_LIST_OPTIONS, ...options };
+  const updateListUI = () => listInit(listElement, storeKey, options);
   for (const text of store.state[storeKey]) {
-    _listAppend(listElement, storeKey, text, {
-      ...listOptions,
-      insertMode: "append", // Always append when initializing because the array is already in the correct order.
-    });
+    _listAppend(
+      listElement,
+      storeKey,
+      text,
+      { ...listOptions, insertMode: "append" }, // Always append when initializing because the array is already in the correct order.
+      updateListUI
+    );
   }
   // Add prompt(s).
   if (options.insertMode === "both") {
-    _listPrompt(listElement, storeKey, {
-      ...listOptions,
-      insertMode: "append",
-    });
-    _listPrompt(listElement, storeKey, {
-      ...listOptions,
-      insertMode: "prepend",
-    });
+    _listPrompt(
+      listElement,
+      storeKey,
+      { ...listOptions, insertMode: "append" },
+      updateListUI
+    );
+    _listPrompt(
+      listElement,
+      storeKey,
+      { ...listOptions, insertMode: "prepend" },
+      updateListUI
+    );
   } else {
-    _listPrompt(listElement, storeKey, listOptions);
+    _listPrompt(listElement, storeKey, listOptions, updateListUI);
   }
 }
 
@@ -594,18 +602,26 @@ function _listAppend(
   listElement: HTMLOListElement | HTMLUListElement,
   storeKey: StoreStringArrayKey,
   text: string,
-  options: ListOptions
+  options: ListOptions,
+  updateListUI: () => void
 ) {
   const listItem = document.createElement("li");
   const textInput = document.createElement("input");
   textInput.type = "text";
-
-  const [allowed] = options.isEditAllowed(text);
-  if (!allowed) textInput.disabled = true;
-
   textInput.placeholder = options.getItemPlaceholder(text);
   textInput.spellcheck = options.spellcheck;
   textInput.value = text;
+  const moveButtonsContainer = document.createElement("span");
+  moveButtonsContainer.className = "move-buttons-container";
+  const moveUpButton = document.createElement("button");
+  moveUpButton.textContent = "↑";
+  moveUpButton.title = "Move up";
+  const moveDownButton = document.createElement("button");
+  moveDownButton.textContent = "↓";
+  moveDownButton.title = "Move down";
+
+  const [allowed] = options.isEditAllowed(text);
+  if (!allowed) textInput.disabled = true;
 
   // Highlight text when focused.
   textInput.addEventListener("focus", textInput.select.bind(textInput));
@@ -644,7 +660,52 @@ function _listAppend(
     if (options.onChange) options.onChange(oldText, newText);
   });
 
+  moveUpButton.addEventListener("click", e => {
+    e.preventDefault();
+    // Get index of item in array.
+    const itemIndex = store.state[storeKey].findIndex(
+      item => item.toLowerCase() === text.toLowerCase()
+    );
+    if (itemIndex === -1)
+      return console.error(`Item '${text}' not found in '${storeKey}' array`);
+    if (itemIndex === 0)
+      return console.warn("Item is already at the top of the list");
+    // Swap item with the previous one.
+    const array = store.state[storeKey];
+    [array[itemIndex - 1], array[itemIndex]] = [
+      array[itemIndex],
+      array[itemIndex - 1],
+    ];
+    store.state[storeKey] = array;
+    // Update list UI.
+    updateListUI();
+  });
+
+  moveDownButton.addEventListener("click", e => {
+    e.preventDefault();
+    // Get index of item in array.
+    const itemIndex = store.state[storeKey].findIndex(
+      item => item.toLowerCase() === text.toLowerCase()
+    );
+    if (itemIndex === -1)
+      return console.error(`Item '${text}' not found in '${storeKey}' array`);
+    if (itemIndex === store.state[storeKey].length - 1)
+      return console.warn("Item is already at the bottom of the list");
+    // Swap item with the next one.
+    const array = store.state[storeKey];
+    [array[itemIndex], array[itemIndex + 1]] = [
+      array[itemIndex + 1],
+      array[itemIndex],
+    ];
+    store.state[storeKey] = array;
+    // Update list UI.
+    updateListUI();
+  });
+
+  moveButtonsContainer.append(moveUpButton);
+  moveButtonsContainer.append(moveDownButton);
   listItem.append(textInput);
+  listItem.append(moveButtonsContainer);
 
   if (options.insertMode === "prepend") listElement.prepend(listItem);
   else listElement.append(listItem);
@@ -659,13 +720,13 @@ function _listAppend(
 function _listPrompt(
   listElement: HTMLOListElement | HTMLUListElement,
   storeKey: StoreStringArrayKey,
-  options: ListOptions
+  options: ListOptions,
+  updateListUI: () => void
 ) {
   const listItem = document.createElement("li");
   if (options.hidePromptMarker) listItem.classList.add("hide-marker");
   const promptInput = document.createElement("input");
   promptInput.type = "text";
-
   promptInput.placeholder = options.getPromptPlaceholder(options.insertMode);
   promptInput.spellcheck = options.spellcheck;
 
@@ -699,11 +760,13 @@ function _listPrompt(
     if (options.onChange) options.onChange(undefined, text);
 
     listItem.remove();
-    _listAppend(listElement, storeKey, text, options);
-    _listPrompt(listElement, storeKey, {
-      ...options,
-      focusPrompt: true,
-    });
+    _listAppend(listElement, storeKey, text, options, updateListUI);
+    _listPrompt(
+      listElement,
+      storeKey,
+      { ...options, focusPrompt: true },
+      updateListUI
+    );
   });
 
   listItem.append(promptInput);
