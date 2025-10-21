@@ -22,7 +22,9 @@ export default async function updateDnsResponses() {
     const existing =
       existingIndex !== -1 ? store.state.dnsResponses[existingIndex] : null;
     const isDnsResponseValid =
-      existing && Date.now() - existing.timestamp < existing.ttl * 1000;
+      existing &&
+      (existing.ttl === -1 ||
+        Date.now() - existing.timestamp < existing.ttl * 1000);
     if (isDnsResponseValid) {
       continue;
     }
@@ -34,7 +36,7 @@ export default async function updateDnsResponses() {
         host,
         ips: [host],
         timestamp: Date.now(),
-        ttl: Infinity,
+        ttl: -1,
       });
       continue;
     }
@@ -51,8 +53,8 @@ export default async function updateDnsResponses() {
       ];
       const responses = await Promise.all(requests);
 
-      let ips = [] as string[];
-      let ttl = Infinity;
+      let ips: string[] = [];
+      let ttl: number | null = null;
       for (const response of responses) {
         if (!response.ok) {
           console.error(
@@ -69,7 +71,7 @@ export default async function updateDnsResponses() {
         if (Answer) {
           ips.push(...Answer.map(answer => answer.data));
           const answerTtl = Math.min(...Answer.map(answer => answer.TTL));
-          if (answerTtl < ttl) {
+          if (ttl == null || answerTtl < ttl) {
             ttl = answerTtl;
           }
         }
@@ -83,7 +85,7 @@ export default async function updateDnsResponses() {
         host,
         ips: Array.from(new Set(ips)), // Remove duplicates
         timestamp: Date.now(),
-        ttl: Math.max(ttl, MIN_TTL), // Enforce minimum TTL
+        ttl: ttl ? Math.max(ttl, MIN_TTL) : MIN_TTL, // Enforce minimum TTL
       });
     } catch (error) {
       console.error(error);

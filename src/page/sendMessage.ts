@@ -26,7 +26,7 @@ async function sendMessageAndWaitForResponse(
       const { message } = event.data;
       if (!message) return;
       if (message.type === responseMessageType) {
-        self.removeEventListener("message", listener);
+        broadcastChannel.removeEventListener("message", listener);
         resolve(message);
       }
     };
@@ -39,7 +39,7 @@ async function sendMessageAndWaitForResponse(
       responseMessageType,
     });
     setTimeout(() => {
-      self.removeEventListener("message", listener);
+      broadcastChannel.removeEventListener("message", listener);
       reject(new Error("Timed out waiting for message response."));
     }, responseTimeout);
   });

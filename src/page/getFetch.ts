@@ -99,7 +99,9 @@ export function getFetch(pageState: PageState): typeof fetch {
         ) {
           const requestType = message.requestType as ProxyRequestType;
           const mutex = pageState.requestTypeMutexes[requestType];
-          mutex.release();
+          if (mutex.isLocked()) {
+            mutex.release();
+          }
           console.debug(`[TTV LOL PRO] 🔓 RELEASE '${requestType}' (timeout)`);
         }
         break;

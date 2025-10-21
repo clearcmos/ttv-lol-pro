@@ -16,6 +16,7 @@ export async function readFile(accept = "text/plain;charset=utf-8") {
       return resolve(data);
     });
     input.click();
+    input.remove();
   });
 }
 
@@ -34,4 +35,5 @@ export function saveFile(
   a.setAttribute("href", `data:${type},` + encodeURIComponent(content));
   a.setAttribute("download", filename);
   a.click();
+  a.remove();
 }
