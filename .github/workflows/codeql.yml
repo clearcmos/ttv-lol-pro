@@ -16,18 +16,20 @@ on:
     branches: ["v2"]
     tags-ignore: ["**"]
   pull_request:
-    # The branches below must be a subset of the branches above
-    branches: ["v2"]
     types: [opened, synchronize, reopened, ready_for_review]
+    branches: ["v2"]
   schedule:
     - cron: "32 9 * * 6"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
-    concurrency: codeql-${{ github.ref }}
     permissions:
       actions: read
       contents: read

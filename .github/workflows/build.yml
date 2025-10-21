@@ -5,16 +5,18 @@ on:
     branches: ["**"]
     tags-ignore: ["**"]
   pull_request:
-    branches: ["**"]
     types: [opened, synchronize, reopened, ready_for_review]
+    branches: ["**"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
-    concurrency: build-${{ github.ref }}
-
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies

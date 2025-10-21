@@ -7,18 +7,21 @@
 name: "Dependency Review"
 on:
   pull_request:
-    branches: ["**"]
     types: [opened, synchronize, reopened, ready_for_review]
+    branches: ["**"]
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
-    concurrency: dependencies-${{ github.ref }}
     steps:
       - name: "Checkout Repository"
         uses: actions/checkout@v4
