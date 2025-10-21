@@ -35,7 +35,6 @@
     "128": "common/images/brand/icon.png"
   },
   "options_ui": {
-    "browser_style": false,
     "open_in_tab": true,
     "page": "options/page.html"
   },

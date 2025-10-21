@@ -60,7 +60,7 @@ export function updateProxySettings(requestFilter?: ProxyRequestType[]) {
   );
 
   const config = {
-    mode: "pac_script",
+    mode: chrome.proxy.Mode.PAC_SCRIPT,
     pacScript: {
       data: `
         function FindProxyForURL(url, host) {
