@@ -2,45 +2,38 @@
   "name": "ttv-lol-pro",
   "version": "2.6.0",
   "description": "TTV LOL PRO removes most livestream ads from Twitch.",
-  "@parcel/bundler-default": {
-    "minBundles": 10000000,
-    "minBundleSize": 3000,
-    "maxParallelRequests": 20
-  },
-  "targets": {
-    "webext-dev": {
-      "sourceMap": {
-        "inline": true,
-        "inlineSources": true
-      }
-    },
-    "webext-prod": {}
-  },
-  "browserslist": "> 0.5%, last 2 versions, not dead",
-  "scripts": {
-    "predev:firefox": "npm run clean && shx cp src/manifest.firefox.json src/manifest.json",
-    "predev:chromium": "npm run clean && shx cp src/manifest.chromium.json src/manifest.json",
-    "dev:firefox": "parcel src/manifest.json --host localhost --target webext-dev --no-hmr",
-    "dev:chromium": "parcel src/manifest.json --host localhost --target webext-dev --no-hmr",
-    "lint": "prettier --check .",
-    "lint:fix": "prettier --write .",
-    "type-check": "tsc --noEmit",
-    "prebuild:firefox": "npm run clean && shx cp src/manifest.firefox.json src/manifest.json",
-    "prebuild:chromium": "npm run clean && shx cp src/manifest.chromium.json src/manifest.json",
-    "build:firefox": "parcel build src/manifest.json --target webext-prod --no-source-maps",
-    "build:chromium": "parcel build src/manifest.json --target webext-prod --no-source-maps",
-    "clean": "shx rm -rf .parcel-cache ; shx rm -rf dist ; shx --silent rm src/manifest.json ; exit 0"
-  },
   "keywords": [
     "twitch",
     "web-extension",
     "adblocker"
   ],
+  "homepage": "https://github.com/younesaassila/ttv-lol-pro#readme",
+  "bugs": {
+    "url": "https://github.com/younesaassila/ttv-lol-pro/issues"
+  },
+  "license": "GPL-3.0",
   "author": "Younes Aassila (https://github.com/younesaassila)",
   "contributors": [
     "Marc Gómez (https://github.com/zGato)"
   ],
-  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/younesaassila/ttv-lol-pro.git"
+  },
+  "scripts": {
+    "lint": "prettier --check .",
+    "lint:fix": "prettier --write .",
+    "type-check": "tsc --noEmit",
+    "clean": "shx rm -rf .parcel-cache ; shx rm -rf dist ; shx --silent rm src/manifest.json ; exit 0",
+    "predev:firefox": "npm run clean && shx cp src/manifest.firefox.json src/manifest.json",
+    "predev:chromium": "npm run clean && shx cp src/manifest.chromium.json src/manifest.json",
+    "dev:firefox": "parcel watch --target webext-dev --no-hmr",
+    "dev:chromium": "parcel watch --target webext-dev --no-hmr",
+    "prebuild:firefox": "npm run clean && shx cp src/manifest.firefox.json src/manifest.json",
+    "prebuild:chromium": "npm run clean && shx cp src/manifest.chromium.json src/manifest.json",
+    "build:firefox": "parcel build --target webext-prod",
+    "build:chromium": "parcel build --target webext-prod"
+  },
   "dependencies": {
     "async-mutex": "^0.5.0",
     "bowser": "^2.11.0",
@@ -62,5 +55,13 @@
     "typescript": "^5.8.3",
     "webextension-polyfill": "^0.12.0"
   },
+  "source": "src/manifest.json",
+  "targets": {
+    "webext-dev": {},
+    "webext-prod": {
+      "sourceMap": false
+    }
+  },
+  "browserslist": "> 0.5%, last 2 versions, not dead",
   "private": true
 }

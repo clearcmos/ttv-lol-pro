@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2021",
-    "moduleResolution": "Node",
+    "target": "es2022",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "noEmit": true,
     "strict": true
