@@ -2,7 +2,8 @@ import { Mutex } from "async-mutex";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
 import toAbsoluteUrl from "../common/ts/toAbsoluteUrl";
 import { MessageType, ProxyRequestType } from "../types";
-import { getFetch } from "./getFetch";
+import getFetch from "./getFetch";
+import getWorker from "./getWorker";
 import {
   getSendMessageToContentScript,
   getSendMessageToContentScriptAndWaitForResponse,
@@ -15,10 +16,15 @@ import type { PageState } from "./types";
 
 console.info("[TTV LOL PRO] Page script running.");
 
-const params = JSON.parse(document.currentScript!.dataset.params!);
+let params;
+try {
+  params = JSON.parse(document.currentScript!.dataset.params!);
+} catch (error) {
+  console.error("[TTV LOL PRO] Failed to parse params:", error);
+}
+delete document.currentScript!.dataset.params;
 
 const broadcastChannel = new BroadcastChannel(params.broadcastChannelName);
-
 const sendMessageToContentScript =
   getSendMessageToContentScript(broadcastChannel);
 const sendMessageToContentScriptAndWaitForResponse =
@@ -32,10 +38,10 @@ const sendMessageToWorkerScriptsAndWaitForResponse =
   getSendMessageToWorkerScriptsAndWaitForResponse(broadcastChannel);
 
 const pageState: PageState = {
+  params: params,
   isChromium: params.isChromium,
   scope: "page",
   state: undefined,
-  broadcastChannelName: params.broadcastChannelName,
   requestTypeMutexes: {
     [ProxyRequestType.Passport]: new Mutex(),
     [ProxyRequestType.Usher]: new Mutex(),
@@ -55,80 +61,33 @@ const pageState: PageState = {
   sendMessageToWorkerScriptsAndWaitForResponse,
 };
 
-window.fetch = getFetch(pageState);
+const newFetch = getFetch(pageState);
+window.fetch = newFetch;
+if (window.fetch !== newFetch) {
+  console.error("[TTV LOL PRO] Failed to replace fetch.");
+  sendMessageToContentScript({
+    type: MessageType.ExtensionError,
+    errorMessage:
+      "Failed to replace fetch. Are you using another Twitch extension?",
+  });
+} else {
+  console.debug("[TTV LOL PRO] fetch replaced successfully.");
+}
 
-const NATIVE_WORKER = window.Worker;
-window.Worker = class Worker extends NATIVE_WORKER {
-  constructor(scriptURL: string | URL, options?: WorkerOptions) {
-    const fullUrl = toAbsoluteUrl(scriptURL.toString());
-    const isTwitchWorker = fullUrl.includes(".twitch.tv");
-    if (!isTwitchWorker) {
-      super(scriptURL, options);
-      return;
-    }
-    // Required for VAFT (>=12.0.0) compatibility.
-    const NATIVE_WORKER_STRING = NATIVE_WORKER.toString();
-    const isAlreadyHooked =
-      NATIVE_WORKER_STRING.includes("twitch") &&
-      (NATIVE_WORKER_STRING.includes("getAdBlockDiv") ||
-        NATIVE_WORKER_STRING.includes("getAdDiv"));
-    if (isAlreadyHooked) {
-      console.error("[TTV LOL PRO] Another Twitch ad blocker is in use.");
-      sendMessageToContentScript({
-        type: MessageType.MultipleAdBlockersInUse,
-      });
-      super(scriptURL, options);
-      return;
-    }
-    let script = "";
-    // Fetch Twitch's script, since Firefox Nightly errors out when trying to
-    // import a blob URL directly.
-    const xhr = new XMLHttpRequest();
-    xhr.open("GET", fullUrl, false);
-    xhr.send();
-    if (200 <= xhr.status && xhr.status < 300) {
-      script = xhr.responseText;
-    } else {
-      console.warn(`[TTV LOL PRO] Failed to fetch script: ${xhr.statusText}`);
-      script = `importScripts('${fullUrl}');`; // Will fail on Firefox Nightly.
-    }
-    // ---------------------------------------
-    // 🦊 Attention Firefox Addon Reviewer 🦊
-    // ---------------------------------------
-    // Please note that this does NOT involve remote code execution. The injected script is bundled
-    // with the extension. Additionally, there is no custom Content Security Policy (CSP) in use.
-    const newScript = `
-      var getParams = () => '${JSON.stringify(params)}';
-      try {
-        importScripts('${params.workerScriptURL}');
-      } catch (error) {
-        console.error('[TTV LOL PRO] Failed to load script: ${
-          params.workerScriptURL
-        }:', error);
-      }
-      ${script}
-    `;
-    const newScriptURL = URL.createObjectURL(
-      new Blob([newScript], { type: "text/javascript" })
-    );
-    // Required for VAFT (<9.0.0) compatibility.
-    const wrapperScript = `
-      try {
-        importScripts('${newScriptURL}');
-      } catch (error) {
-        console.warn('[TTV LOL PRO] Failed to wrap script: ${newScriptURL}:', error);
-        ${newScript}
-      }
-    `;
-    const wrapperScriptURL = URL.createObjectURL(
-      new Blob([wrapperScript], { type: "text/javascript" })
-    );
-    super(wrapperScriptURL, options);
-    pageState.twitchWorkers.push(this);
-    // Can't revoke `newScriptURL` because of a conflict with VAFT.
-    URL.revokeObjectURL(wrapperScriptURL);
+const newWorker = getWorker(pageState);
+if (newWorker !== null) {
+  window.Worker = newWorker;
+  if (window.Worker !== newWorker) {
+    console.error("[TTV LOL PRO] Failed to replace Worker.");
+    sendMessageToContentScript({
+      type: MessageType.ExtensionError,
+      errorMessage:
+        "Failed to replace Worker. Are you using another Twitch ad blocker?",
+    });
+  } else {
+    console.debug("[TTV LOL PRO] Worker replaced successfully.");
   }
-};
+}
 
 let sendStoreStateToWorker = false;
 broadcastChannel.addEventListener("message", event => {
@@ -168,6 +127,7 @@ broadcastChannel.addEventListener("message", event => {
       break;
   }
 });
+sendMessageToContentScript({ type: MessageType.GetStoreState });
 
 function onChannelChange(
   callback: (channelName: string, oldChannelName: string | null) => void
@@ -219,7 +179,6 @@ function onChannelChange(
     }
   });
 }
-
 onChannelChange((_channelName, oldChannelName) => {
   sendMessageToContentScript({
     type: MessageType.ClearStats,
@@ -234,7 +193,5 @@ onChannelChange((_channelName, oldChannelName) => {
     channelName: oldChannelName,
   });
 });
-
-sendMessageToContentScript({ type: MessageType.GetStoreState });
 
 document.currentScript!.remove();

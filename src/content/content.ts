@@ -152,6 +152,17 @@ function onPageMessage(event: MessageEvent) {
     }
   }
   // ---
+  else if (message.type === MessageType.UsherResponse) {
+    try {
+      browser.runtime.sendMessage(message);
+    } catch (error) {
+      console.error(
+        "[TTV LOL PRO] Failed to send UsherResponse message",
+        error
+      );
+    }
+  }
+  // ---
   else if (message.type === MessageType.ChannelSubStatusChange) {
     const { channelNameLower, wasSubscribed, isSubscribed } = message;
     const isWhitelisted = isChannelWhitelisted(channelNameLower);
@@ -199,31 +210,6 @@ function onPageMessage(event: MessageEvent) {
     }
   }
   // ---
-  else if (message.type === MessageType.UsherResponse) {
-    try {
-      browser.runtime.sendMessage(message);
-    } catch (error) {
-      console.error(
-        "[TTV LOL PRO] Failed to send UsherResponse message",
-        error
-      );
-    }
-  }
-  // ---
-  else if (message.type === MessageType.MultipleAdBlockersInUse) {
-    const channelName = findChannelFromTwitchTvUrl(location.href);
-    if (!channelName) return;
-    const streamStatus = getStreamStatus(channelName);
-    setStreamStatus(channelName, {
-      ...(streamStatus ?? { proxied: false }),
-      reason: "Another Twitch ad blocker is in use",
-    });
-  }
-  // ---
-  else if (message.type === MessageType.ClearStats) {
-    clearStats(message.channelName, 2000);
-  }
-  // ---
   else if (message.type === MessageType.UpdateAdLog) {
     const isDuplicate = store.state.adLog.some(
       entry =>
@@ -247,5 +233,19 @@ function onPageMessage(event: MessageEvent) {
       `[TTV LOL PRO] Ad log updated (${store.state.adLog.length} entries).`,
       entry
     );
+  }
+  // ---
+  else if (message.type === MessageType.ClearStats) {
+    clearStats(message.channelName, 2000);
+  }
+  // ---
+  else if (message.type === MessageType.ExtensionError) {
+    const channelName = findChannelFromTwitchTvUrl(location.href);
+    if (!channelName) return;
+    const streamStatus = getStreamStatus(channelName);
+    setStreamStatus(channelName, {
+      ...(streamStatus ?? { proxied: false }),
+      reason: message.errorMessage,
+    });
   }
 }

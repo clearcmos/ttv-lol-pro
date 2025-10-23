@@ -1,6 +1,6 @@
 import { Mutex } from "async-mutex";
 import { MessageType, ProxyRequestType } from "../types";
-import { getFetch } from "./getFetch";
+import getFetch from "./getFetch";
 import {
   getSendMessageToContentScript,
   getSendMessageToContentScriptAndWaitForResponse,
@@ -23,7 +23,6 @@ try {
 getParams = undefined as any;
 
 const broadcastChannel = new BroadcastChannel(params.broadcastChannelName);
-
 const sendMessageToContentScript =
   getSendMessageToContentScript(broadcastChannel);
 const sendMessageToContentScriptAndWaitForResponse =
@@ -37,10 +36,10 @@ const sendMessageToWorkerScriptsAndWaitForResponse =
   getSendMessageToWorkerScriptsAndWaitForResponse(broadcastChannel);
 
 const pageState: PageState = {
+  params: params,
   isChromium: params.isChromium,
   scope: "worker",
   state: undefined,
-  broadcastChannelName: params.broadcastChannelName,
   requestTypeMutexes: {
     [ProxyRequestType.Passport]: new Mutex(),
     [ProxyRequestType.Usher]: new Mutex(),
@@ -60,9 +59,26 @@ const pageState: PageState = {
   sendMessageToWorkerScriptsAndWaitForResponse,
 };
 
-self.fetch = getFetch(pageState);
+const newFetch = getFetch(pageState);
+self.fetch = newFetch;
+if (self.fetch !== newFetch) {
+  console.error("[TTV LOL PRO] Failed to replace fetch.");
+  sendMessageToContentScript({
+    type: MessageType.ExtensionError,
+    errorMessage:
+      "Failed to replace fetch. Are you using another Twitch extension?",
+  });
+}
 
 broadcastChannel.addEventListener("message", event => {
+  if (
+    event.data &&
+    event.data.type === MessageType.ContentScriptMessage &&
+    event.data.type === MessageType.GetStoreState
+  ) {
+    console.log("[TTV LOL PRO] WORKER ALIVE");
+  }
+
   if (!event.data || event.data.type !== MessageType.WorkerScriptMessage) {
     return;
   }
@@ -82,5 +98,4 @@ broadcastChannel.addEventListener("message", event => {
       break;
   }
 });
-
 sendMessageToPageScript({ type: MessageType.GetStoreState });

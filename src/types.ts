@@ -91,9 +91,9 @@ export const enum MessageType {
   NewPlaybackAccessToken = "TLP_NewPlaybackAccessToken",
   NewPlaybackAccessTokenResponse = "TLP_NewPlaybackAccessTokenResponse",
   ChannelSubStatusChange = "TLP_ChannelSubStatusChange",
-  MultipleAdBlockersInUse = "TLP_MultipleAdBlockersInUse",
-  ClearStats = "TLP_ClearStats",
   UpdateAdLog = "TLP_UpdateAdLog",
+  ClearStats = "TLP_ClearStats",
+  ExtensionError = "TLP_ExtensionError",
 }
 
 export const enum ProxyRequestType {

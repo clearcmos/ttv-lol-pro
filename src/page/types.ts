@@ -11,10 +11,10 @@ export type SendMessageAndWaitForResponseFn = (
 ) => Promise<any>;
 
 export interface PageState {
+  params: any;
   isChromium: boolean;
   scope: "page" | "worker";
   state?: State;
-  broadcastChannelName: string;
   requestTypeMutexes: Record<ProxyRequestType, Mutex>;
   twitchWorkers: Worker[];
   sendMessageToContentScript: SendMessageFn;

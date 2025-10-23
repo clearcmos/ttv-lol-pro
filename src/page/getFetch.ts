@@ -16,8 +16,10 @@ import type { PageState, PlaybackAccessToken, UsherManifest } from "./types";
 const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
 const NATIVE_FETCH = self.fetch;
 
-export function getFetch(pageState: PageState): typeof fetch {
-  const broadcastChannel = new BroadcastChannel(pageState.broadcastChannelName);
+export default function getFetch(pageState: PageState): typeof fetch {
+  const broadcastChannel = new BroadcastChannel(
+    pageState.params.broadcastChannelName
+  );
 
   let usherManifests: UsherManifest[] = [];
   let videoWeaverUrlsProxiedCount = new Map<string, number>(); // Used to count how many times each Video Weaver URL was proxied.
@@ -120,7 +122,7 @@ export function getFetch(pageState: PageState): typeof fetch {
   //   }, 30000);
   // }
 
-  return async function fetch(
+  return async function (
     input: RequestInfo | URL,
     init?: RequestInit
   ): Promise<Response> {
