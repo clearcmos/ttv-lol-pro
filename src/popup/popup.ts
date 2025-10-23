@@ -90,7 +90,7 @@ function setProxyStatus(
     proxiedElement.classList.remove("error");
     proxiedElement.classList.remove("idle");
     proxiedElement.classList.add("success");
-    proxiedElement.title = "Proxying";
+    proxiedElement.title = "Proxied last request";
   } else if (
     !status.proxied &&
     status.proxyHost &&
@@ -103,12 +103,12 @@ function setProxyStatus(
     proxiedElement.classList.remove("error");
     proxiedElement.classList.remove("success");
     proxiedElement.classList.add("idle");
-    proxiedElement.title = "Idling";
+    proxiedElement.title = "Proxying ad requests only";
   } else {
     proxiedElement.classList.remove("success");
     proxiedElement.classList.remove("idle");
     proxiedElement.classList.add("error");
-    proxiedElement.title = "Not proxying";
+    proxiedElement.title = "Did not proxy last request";
   }
   if (!proxiedElement.classList.contains("pulsing")) {
     proxiedElement.classList.add("pulsing");
