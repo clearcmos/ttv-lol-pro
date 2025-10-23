@@ -5,6 +5,7 @@ import findChannelFromUsherUrl from "../common/ts/findChannelFromUsherUrl";
 import generateRandomString from "../common/ts/generateRandomString";
 import getHostFromUrl from "../common/ts/getHostFromUrl";
 import isRequestTypeProxied from "../common/ts/isRequestTypeProxied";
+import Logger from "../common/ts/Logger";
 import {
   twitchGqlHostRegex,
   usherHostRegex,
@@ -15,6 +16,7 @@ import type { PageState, PlaybackAccessToken, UsherManifest } from "./types";
 
 const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
 const NATIVE_FETCH = self.fetch;
+const logger = new Logger("fetch");
 
 export default function getFetch(pageState: PageState): typeof fetch {
   const broadcastChannel = new BroadcastChannel(
@@ -74,7 +76,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
 
     switch (message.type) {
       case MessageType.ClearStats:
-        console.log("[TTV LOL PRO] Cleared stats (getFetch).");
+        logger.log("Cleared stats.");
         if (!message.channelName) break;
         const channelNameLower = message.channelName.toLowerCase();
         for (let i = 0; i < usherManifests.length; i++) {
@@ -104,7 +106,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
           if (mutex.isLocked()) {
             mutex.release();
           }
-          console.debug(`[TTV LOL PRO] 🔓 RELEASE '${requestType}' (timeout)`);
+          logger.debug(`🔓 Unlocked '${requestType}' (timeout)`);
         }
         break;
     }
@@ -172,10 +174,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
         try {
           graphQlBody = JSON.parse(requestBody);
         } catch (error) {
-          console.error(
-            "[TTV LOL PRO] Failed to parse GraphQL request body:",
-            error
-          );
+          logger.error("Failed to parse GraphQL request body:", error);
         }
         await waitForStore(pageState);
         const isLivestream = graphQlBody?.variables?.isLive as
@@ -185,8 +184,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
         const channelName = graphQlBody?.variables?.login as string | undefined;
         const isWhitelisted = isChannelWhitelisted(channelName, pageState);
         if (!isLivestream || isFrontpage || isWhitelisted) {
-          console.log(
-            "[TTV LOL PRO] Not flagging PlaybackAccessToken request: not a livestream, is frontpage, or is whitelisted."
+          logger.log(
+            "Not flagging PlaybackAccessToken request: not a livestream, is frontpage, or is whitelisted."
           );
           break graphqlReq;
         }
@@ -231,20 +230,16 @@ export default function getFetch(pageState: PageState): typeof fetch {
             pageState.state?.anonymousMode === true
           );
           if (newRequest) {
-            console.log(
-              "[TTV LOL PRO] Overriding PlaybackAccessToken request…"
-            );
+            logger.log("Overriding PlaybackAccessToken request…");
             request = newRequest;
             willFailIntegrityCheckIfProxied = false; // Template requests don't have integrity checks.
           } else {
-            console.error(
-              "[TTV LOL PRO] Failed to override PlaybackAccessToken request."
-            );
+            logger.error("Failed to override PlaybackAccessToken request.");
           }
         }
         // Notice that if anonymous mode fails, we still flag the request to avoid ads.
         if (shouldFlagRequest && !willFailIntegrityCheckIfProxied) {
-          console.log("[TTV LOL PRO] Flagging PlaybackAccessToken request…");
+          logger.log("Flagging PlaybackAccessToken request…");
           isFlaggedRequest = true;
         }
         break graphqlReq;
@@ -271,11 +266,11 @@ export default function getFetch(pageState: PageState): typeof fetch {
         );
         if (shouldFlagRequest) {
           if (isIntegrityRequest) {
-            console.debug("[TTV LOL PRO] Flagging GraphQL integrity request…");
+            logger.debug("Flagging GraphQL integrity request…");
             isFlaggedRequest = true;
           } else if (isIntegrityHeaderRequest) {
-            console.debug(
-              "[TTV LOL PRO] Flagging GraphQL request with Client-Integrity header…"
+            logger.debug(
+              "Flagging GraphQL request with Client-Integrity header…"
             );
             isFlaggedRequest = true;
           }
@@ -300,8 +295,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
       const channelName = findChannelFromUsherUrl(url);
       const isWhitelisted = isChannelWhitelisted(channelName, pageState);
       if (!isLivestream || isFrontpage || isWhitelisted) {
-        console.log(
-          "[TTV LOL PRO] Not flagging Usher request: not a livestream, is frontpage, or is whitelisted."
+        logger.log(
+          "Not flagging Usher request: not a livestream, is frontpage, or is whitelisted."
         );
         break usherReq;
       }
@@ -316,7 +311,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
           : null,
       });
       if (shouldFlagRequest) {
-        console.debug("[TTV LOL PRO] Flagging Usher request…");
+        logger.log("Flagging Usher request…");
         isFlaggedRequest = true;
       }
       //#endregion
@@ -331,14 +326,14 @@ export default function getFetch(pageState: PageState): typeof fetch {
         [...manifest.assignedMap.values()].includes(url)
       );
       if (manifest == null) {
-        console.warn(
-          "[TTV LOL PRO] No associated Usher manifest found for Video Weaver request."
+        logger.warn(
+          "No associated Usher manifest found for Video Weaver request."
         );
       }
       if (videoWeaverUrlsToNotProxy.has(url)) {
         if (IS_DEVELOPMENT) {
-          console.debug(
-            "[TTV LOL PRO] Not flagging Video Weaver request: is frontpage or is whitelisted."
+          logger.debug(
+            "Not flagging Video Weaver request: is frontpage or is whitelisted."
           );
         }
         break weaverReq;
@@ -353,19 +348,17 @@ export default function getFetch(pageState: PageState): typeof fetch {
         if (videoQuality != null && manifest.replacementMap.has(videoQuality)) {
           videoWeaverUrl = manifest.replacementMap.get(videoQuality)!;
           if (IS_DEVELOPMENT) {
-            console.debug(
-              `[TTV LOL PRO] Replaced Video Weaver URL '${url}' with '${videoWeaverUrl}'.`
+            logger.debug(
+              `Replaced Video Weaver URL '${url}' with '${videoWeaverUrl}'.`
             );
           }
         } else if (manifest.replacementMap.size > 0) {
           videoWeaverUrl = [...manifest.replacementMap.values()][0];
-          console.warn(
-            `[TTV LOL PRO] Replacement Video Weaver URL not found for '${url}'. Using first replacement URL '${videoWeaverUrl}'.`
+          logger.warn(
+            `Replacement Video Weaver URL not found for '${url}'. Using first replacement URL '${videoWeaverUrl}'.`
           );
         } else {
-          console.error(
-            `[TTV LOL PRO] Replacement Video Weaver URL not found for '${url}'.`
-          );
+          logger.error(`Replacement Video Weaver URL not found for '${url}'.`);
         }
       }
       if (videoWeaverUrl !== url) {
@@ -404,8 +397,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
           const suffix = suffixes.get(rule);
           return `${n}${suffix}`;
         };
-        console.log(
-          `[TTV LOL PRO] Flagging ${formatOrdinals(
+        logger.log(
+          `Flagging ${formatOrdinals(
             proxiedCount + 1
           )} request to Video Weaver URL '${videoWeaverUrl}'…`
         );
@@ -431,11 +424,11 @@ export default function getFetch(pageState: PageState): typeof fetch {
           const mutex = pageState.requestTypeMutexes[requestType];
           const isLocked = mutex.isLocked();
           if (isLocked) {
-            console.debug(`[TTV LOL PRO] 🔒 WAIT '${requestType}' (${url})`);
+            logger.debug(`🔒 Waiting for '${requestType}'... (${url})`);
           }
           await mutex.waitForUnlock();
           if (isLocked) {
-            console.debug(`[TTV LOL PRO] 🔓 DONE '${requestType}' (${url})`);
+            logger.debug(`🔓 Done waiting for '${requestType}' (${url})`);
           }
         }
       }
@@ -510,7 +503,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
           });
         }
       } catch (error) {
-        console.error("[TTV LOL PRO] Failed to parse GraphQL response:", error);
+        logger.error("Failed to parse GraphQL response:", error);
       }
     }
 
@@ -534,8 +527,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
       usherManifests = usherManifests.filter(manifest => !manifest.deleted); // Clean up deleted manifests.
       const assignedMap = parseUsherManifest(responseBody);
       if (assignedMap != null) {
-        console.debug(
-          "[TTV LOL PRO] Received Usher response:",
+        logger.debug(
+          "Received Usher response:",
           Object.fromEntries(assignedMap)
         );
         usherManifests.push({
@@ -547,9 +540,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
           deleted: false,
         });
       } else {
-        console.error(
-          "[TTV LOL PRO] Received Usher response but failed to parse it."
-        );
+        logger.error("Received Usher response but failed to parse it.");
       }
       // Send Video Weaver URLs to content script.
       const videoWeaverUrls = [...(assignedMap?.values() ?? [])];
@@ -579,8 +570,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
         [...manifest.assignedMap.values()].includes(url)
       );
       if (manifest == null) {
-        console.warn(
-          "[TTV LOL PRO] No associated Usher manifest found for Video Weaver response."
+        logger.error(
+          "No associated Usher manifest found for Video Weaver response."
         );
         break weaverRes;
       }
@@ -592,7 +583,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
         await waitForStore(pageState);
 
         if (responseBodyLower.includes("midroll")) {
-          console.log("[TTV LOL PRO] Midroll ad detected.");
+          logger.log("Midroll ad detected.");
           manifest.consecutiveMidrollResponses += 1;
           manifest.consecutiveMidrollCooldown = 15;
           const shouldUpdateReplacementMap =
@@ -755,7 +746,7 @@ async function waitForStore(pageState: PageState) {
       );
     pageState.state = message.state;
   } catch (error) {
-    console.error("[TTV LOL PRO] Failed to get store state:", error);
+    logger.error("Failed to get store state:", error);
   }
 }
 
@@ -803,7 +794,7 @@ async function _flagRequest(
         MessageType.EnableFullModeResponse
       );
     } catch (error) {
-      console.error("[TTV LOL PRO] Failed to flag request:", error);
+      logger.error("Failed to flag request:", error);
     }
     return request;
   } else {
@@ -835,7 +826,7 @@ async function _flagRequestCleanup(
       MessageType.DisableFullModeResponse
     );
   } catch (error) {
-    console.error("[TTV LOL PRO] Failed to cleanup flagged request:", error);
+    logger.error("Failed to cleanup flagged request:", error);
   }
 }
 
@@ -854,18 +845,16 @@ async function flagRequestAndFetch(
     const mutex = pageState.requestTypeMutexes[requestType];
     const isLocked = mutex.isLocked();
     if (isLocked) {
-      console.debug(`[TTV LOL PRO] 🔒 WAIT '${requestType}' (${request.url})`);
+      logger.debug(`🔒 Waiting for '${requestType}'... (${request.url})`);
     }
     let response!: Response;
     await mutex.runExclusive(async () => {
-      console.debug(`[TTV LOL PRO] 🔒 LOCK '${requestType}' (${request.url})`);
+      logger.debug(`🔒 Locked '${requestType}' (${request.url})`);
       response = await doWork();
-      console.debug(
-        `[TTV LOL PRO] 🔓 UN-LOCK '${requestType}' (${request.url})`
-      );
+      logger.debug(`🔓 Unlocked '${requestType}' (${request.url})`);
     });
     if (isLocked) {
-      console.debug(`[TTV LOL PRO] 🔓 DONE '${requestType}' (${request.url})`);
+      logger.debug(`🔓 Done waiting for '${requestType}' (${request.url})`);
     }
     return response;
   } else {
@@ -1068,9 +1057,9 @@ async function updateVideoWeaverReplacementMap(
   cachedUsherRequestUrl: string | null,
   manifest: UsherManifest
 ): Promise<boolean> {
-  console.log("[TTV LOL PRO] Getting replacement Video Weaver URLs…");
+  logger.log("Getting replacement Video Weaver URLs…");
   try {
-    console.log("[TTV LOL PRO] (1/3) Getting new PlaybackAccessToken…");
+    logger.log("(1/3) Getting new PlaybackAccessToken…");
     const newPlaybackAccessTokenResponse =
       await pageState.sendMessageToPageScriptAndWaitForResponse(
         "worker",
@@ -1082,30 +1071,30 @@ async function updateVideoWeaverReplacementMap(
     const newPlaybackAccessToken: PlaybackAccessToken | undefined =
       newPlaybackAccessTokenResponse?.newPlaybackAccessToken;
     if (newPlaybackAccessToken == null) {
-      console.error("[TTV LOL PRO] Failed to get new PlaybackAccessToken.");
+      logger.error("Failed to get new PlaybackAccessToken.");
       return false;
     }
 
-    console.log("[TTV LOL PRO] (2/3) Fetching new Usher manifest…");
+    logger.log("(2/3) Fetching new Usher manifest…");
     const newUsherManifest = await fetchReplacementUsherManifest(
       pageState,
       cachedUsherRequestUrl,
       newPlaybackAccessToken
     );
     if (newUsherManifest == null) {
-      console.error("[TTV LOL PRO] Failed to fetch new Usher manifest.");
+      logger.error("Failed to fetch new Usher manifest.");
       return false;
     }
 
-    console.log("[TTV LOL PRO] (3/3) Parsing new Usher manifest…");
+    logger.log("(3/3) Parsing new Usher manifest…");
     const replacementMap = parseUsherManifest(newUsherManifest);
     if (replacementMap == null || replacementMap.size === 0) {
-      console.error("[TTV LOL PRO] Failed to parse new Usher manifest.");
+      logger.error("Failed to parse new Usher manifest.");
       return false;
     }
 
-    console.log(
-      "[TTV LOL PRO] Replacement Video Weaver URLs:",
+    logger.log(
+      "Replacement Video Weaver URLs:",
       Object.fromEntries(replacementMap)
     );
     manifest.replacementMap = replacementMap;
@@ -1124,10 +1113,7 @@ async function updateVideoWeaverReplacementMap(
 
     return true;
   } catch (error) {
-    console.error(
-      "[TTV LOL PRO] Failed to get replacement Video Weaver URLs:",
-      error
-    );
+    logger.error("Failed to get replacement Video Weaver URLs:", error);
     return false;
   }
 }

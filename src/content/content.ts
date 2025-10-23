@@ -5,12 +5,14 @@ import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl"
 import generateRandomString from "../common/ts/generateRandomString";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
 import isChromium from "../common/ts/isChromium";
+import Logger from "../common/ts/Logger";
 import { getStreamStatus, setStreamStatus } from "../common/ts/streamStatus";
 import store from "../store";
 import type { State } from "../store/types";
 import { AdLogEntry, MessageType } from "../types";
 
-console.info("[TTV LOL PRO] Content script running.");
+const logger = new Logger("Content");
+logger.log("Content script running.");
 
 const broadcastChannelName = `TLP_${generateRandomString(32)}`;
 const broadcastChannel = new BroadcastChannel(broadcastChannelName);
@@ -62,9 +64,7 @@ async function clearStats(channelName: string | null, delayMs?: number) {
   if (store.state.streamStatuses.hasOwnProperty(channelNameLower)) {
     delete store.state.streamStatuses[channelNameLower];
   }
-  console.log(
-    `[TTV LOL PRO] Cleared stats for channel '${channelNameLower}' (content script).`
-  );
+  logger.log(`Cleared stats for channel '${channelNameLower}'.`);
 }
 
 function onStoreChange(changes: Record<string, Storage.StorageChange>) {
@@ -79,7 +79,7 @@ function onStoreChange(changes: Record<string, Storage.StorageChange>) {
     "videoWeaverUrlsByChannel",
   ];
   if (changedKeys.every(key => ignoredKeys.includes(key))) return;
-  console.log("[TTV LOL PRO] Store changed:", changes);
+  logger.log("Store changed:", changes);
   broadcastChannel.postMessage({
     type: MessageType.PageScriptMessage,
     message: {
@@ -134,10 +134,7 @@ function onPageMessage(event: MessageEvent) {
     try {
       browser.runtime.sendMessage(message);
     } catch (error) {
-      console.error(
-        "[TTV LOL PRO] Failed to send EnableFullMode message",
-        error
-      );
+      logger.error("Failed to send EnableFullMode message.", error);
     }
   }
   // ---
@@ -145,10 +142,7 @@ function onPageMessage(event: MessageEvent) {
     try {
       browser.runtime.sendMessage(message);
     } catch (error) {
-      console.error(
-        "[TTV LOL PRO] Failed to send DisableFullMode message",
-        error
-      );
+      logger.error("Failed to send DisableFullMode message.", error);
     }
   }
   // ---
@@ -156,17 +150,14 @@ function onPageMessage(event: MessageEvent) {
     try {
       browser.runtime.sendMessage(message);
     } catch (error) {
-      console.error(
-        "[TTV LOL PRO] Failed to send UsherResponse message",
-        error
-      );
+      logger.error("Failed to send UsherResponse message.", error);
     }
   }
   // ---
   else if (message.type === MessageType.ChannelSubStatusChange) {
     const { channelNameLower, wasSubscribed, isSubscribed } = message;
     const isWhitelisted = isChannelWhitelisted(channelNameLower);
-    console.log("[TTV LOL PRO] ChannelSubStatusChange", {
+    logger.log("Channel subscription status changed:", {
       channelNameLower,
       wasSubscribed,
       isSubscribed,
@@ -180,10 +171,8 @@ function onPageMessage(event: MessageEvent) {
         store.state.activeChannelSubscriptions.push(channelNameLower);
         // Add to whitelist.
         if (!isWhitelisted) {
-          console.log(
-            `[TTV LOL PRO] Adding '${channelNameLower}' to whitelist.`
-          );
           store.state.whitelistedChannels.push(channelNameLower);
+          logger.log(`Added '${channelNameLower}' to whitelist.`);
           if (channelNameLower === currentChannelNameLower) {
             location.reload();
           }
@@ -195,13 +184,11 @@ function onPageMessage(event: MessageEvent) {
           );
         // Remove from whitelist.
         if (isWhitelisted) {
-          console.log(
-            `[TTV LOL PRO] Removing '${channelNameLower}' from whitelist.`
-          );
           store.state.whitelistedChannels =
             store.state.whitelistedChannels.filter(
               channel => channel.toLowerCase() !== channelNameLower
             );
+          logger.log(`Removed '${channelNameLower}' from whitelist.`);
           if (channelNameLower === currentChannelNameLower) {
             location.reload();
           }
@@ -229,10 +216,7 @@ function onPageMessage(event: MessageEvent) {
       // Keep only the last 100 entries.
       store.state.adLog.splice(0, store.state.adLog.length - 100);
     }
-    console.log(
-      `[TTV LOL PRO] Ad log updated (${store.state.adLog.length} entries).`,
-      entry
-    );
+    logger.log(`Ad log updated (${store.state.adLog.length} entries):`, entry);
   }
   // ---
   else if (message.type === MessageType.ClearStats) {

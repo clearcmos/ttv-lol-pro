@@ -30,7 +30,7 @@ export default function onContentScriptMessage(
     // Set new timeout for request type.
     const fetchTimeoutMs = fetchTimeoutMsOverride.has(requestType)
       ? fetchTimeoutMsOverride.get(requestType)!
-      : 3000; // Time for fetch to be called.
+      : 3500; // Time for fetch to be called.
     const replyTimeoutMs = Date.now() - message.timestamp; // Time for reply to be received.
     timeoutMap.set(
       requestType,

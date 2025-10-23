@@ -1,11 +1,14 @@
+import Logger from "../common/ts/Logger";
 import toAbsoluteUrl from "../common/ts/toAbsoluteUrl";
 import { MessageType } from "../types";
 import type { PageState } from "./types";
 
+const logger = new Logger("getWorker");
+
 export default function getWorker(pageState: PageState): typeof Worker | null {
   // Check for other Twitch ad blockers at injection time.
   if (isUsingAnotherAdBlocker(window.Worker.prototype)) {
-    console.error("[TTV LOL PRO] Another Twitch ad blocker is in use.");
+    logger.error("Another Twitch ad blocker is in use.");
     pageState.sendMessageToContentScript({
       type: MessageType.ExtensionError,
       errorMessage: "Another Twitch ad blocker is in use",
@@ -24,7 +27,7 @@ export default function getWorker(pageState: PageState): typeof Worker | null {
       // Check for other Twitch ad blockers at instantiation time (in case one was
       // injected after TTV LOL PRO).
       if (isUsingAnotherAdBlocker(window.Worker.prototype)) {
-        console.error("[TTV LOL PRO] Another Twitch ad blocker is in use.");
+        logger.error("Another Twitch ad blocker is in use.");
         pageState.sendMessageToContentScript({
           type: MessageType.ExtensionError,
           errorMessage: "Another Twitch ad blocker is in use",
@@ -41,7 +44,7 @@ export default function getWorker(pageState: PageState): typeof Worker | null {
       if (200 <= xhr.status && xhr.status < 300) {
         script = xhr.responseText;
       } else {
-        console.warn(`[TTV LOL PRO] Failed to fetch script: ${xhr.statusText}`);
+        logger.warn(`Failed to fetch script: ${xhr.statusText}`);
         script = `importScripts('${fullUrl}');`; // Will fail on Firefox Nightly.
       }
       // ---------------------------------------
@@ -54,7 +57,7 @@ export default function getWorker(pageState: PageState): typeof Worker | null {
       try {
         importScripts('${pageState.params.workerScriptURL}');
       } catch (error) {
-        console.error('[TTV LOL PRO] Failed to load script: ${
+        console.error('[TTV LOL PRO] (getWorker) Failed to load script: ${
           pageState.params.workerScriptURL
         }:', error);
       }
@@ -68,7 +71,7 @@ export default function getWorker(pageState: PageState): typeof Worker | null {
       try {
         importScripts('${newScriptURL}');
       } catch (error) {
-        console.warn('[TTV LOL PRO] Failed to wrap script: ${newScriptURL}:', error);
+        console.warn('[TTV LOL PRO] (getWorker) Failed to wrap script: ${newScriptURL}:', error);
         ${newScript}
       }
     `;

@@ -1,4 +1,5 @@
 import { Mutex } from "async-mutex";
+import Logger from "../common/ts/Logger";
 import { MessageType, ProxyRequestType } from "../types";
 import getFetch from "./getFetch";
 import {
@@ -11,14 +12,15 @@ import {
 } from "./sendMessage";
 import type { PageState } from "./types";
 
-console.info("[TTV LOL PRO] Worker script running.");
+const logger = new Logger("Worker");
+logger.log("Worker script running.");
 
 declare var getParams: () => string;
 let params;
 try {
   params = JSON.parse(getParams()!);
 } catch (error) {
-  console.error("[TTV LOL PRO] Failed to parse params:", error);
+  logger.error("Failed to parse params:", error);
 }
 getParams = undefined as any;
 
@@ -62,23 +64,17 @@ const pageState: PageState = {
 const newFetch = getFetch(pageState);
 self.fetch = newFetch;
 if (self.fetch !== newFetch) {
-  console.error("[TTV LOL PRO] Failed to replace fetch.");
+  logger.error("Failed to replace fetch.");
   sendMessageToContentScript({
     type: MessageType.ExtensionError,
     errorMessage:
       "Failed to replace fetch. Are you using another Twitch extension?",
   });
+} else {
+  logger.log("fetch replaced successfully.");
 }
 
 broadcastChannel.addEventListener("message", event => {
-  if (
-    event.data &&
-    event.data.type === MessageType.ContentScriptMessage &&
-    event.data.type === MessageType.GetStoreState
-  ) {
-    console.log("[TTV LOL PRO] WORKER ALIVE");
-  }
-
   if (!event.data || event.data.type !== MessageType.WorkerScriptMessage) {
     return;
   }
@@ -89,9 +85,9 @@ broadcastChannel.addEventListener("message", event => {
   switch (message.type) {
     case MessageType.GetStoreStateResponse: // From Page
       if (pageState.state == null) {
-        console.log("[TTV LOL PRO] Received store state from page script.");
+        logger.log("Received store state from page script.");
       } else {
-        console.debug("[TTV LOL PRO] Received store state from page script.");
+        logger.debug("Received store state from page script.");
       }
       const state = message.state;
       pageState.state = state;

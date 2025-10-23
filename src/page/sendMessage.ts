@@ -59,7 +59,7 @@ export function getSendMessageToContentScriptAndWaitForResponse(
     scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    responseTimeout: number = 5000
+    responseTimeout: number = 7000
   ) => {
     return sendMessageAndWaitForResponse(
       broadcastChannel,
@@ -88,7 +88,7 @@ export function getSendMessageToPageScriptAndWaitForResponse(
     scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    responseTimeout: number = 5000
+    responseTimeout: number = 7000
   ) => {
     return sendMessageAndWaitForResponse(
       broadcastChannel,
@@ -117,7 +117,7 @@ export function getSendMessageToWorkerScriptsAndWaitForResponse(
     scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    responseTimeout: number = 5000
+    responseTimeout: number = 7000
   ) => {
     return sendMessageAndWaitForResponse(
       broadcastChannel,

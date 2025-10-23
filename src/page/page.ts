@@ -1,5 +1,6 @@
 import { Mutex } from "async-mutex";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
+import Logger from "../common/ts/Logger";
 import toAbsoluteUrl from "../common/ts/toAbsoluteUrl";
 import { MessageType, ProxyRequestType } from "../types";
 import getFetch from "./getFetch";
@@ -14,13 +15,14 @@ import {
 } from "./sendMessage";
 import type { PageState } from "./types";
 
-console.info("[TTV LOL PRO] Page script running.");
+const logger = new Logger("Page");
+logger.log("Page script running.");
 
 let params;
 try {
   params = JSON.parse(document.currentScript!.dataset.params!);
 } catch (error) {
-  console.error("[TTV LOL PRO] Failed to parse params:", error);
+  logger.error("Failed to parse params:", error);
 }
 delete document.currentScript!.dataset.params;
 
@@ -64,28 +66,28 @@ const pageState: PageState = {
 const newFetch = getFetch(pageState);
 window.fetch = newFetch;
 if (window.fetch !== newFetch) {
-  console.error("[TTV LOL PRO] Failed to replace fetch.");
+  logger.error("Failed to replace fetch.");
   sendMessageToContentScript({
     type: MessageType.ExtensionError,
     errorMessage:
       "Failed to replace fetch. Are you using another Twitch extension?",
   });
 } else {
-  console.debug("[TTV LOL PRO] fetch replaced successfully.");
+  logger.log("fetch replaced successfully.");
 }
 
 const newWorker = getWorker(pageState);
 if (newWorker !== null) {
   window.Worker = newWorker;
   if (window.Worker !== newWorker) {
-    console.error("[TTV LOL PRO] Failed to replace Worker.");
+    logger.error("Failed to replace Worker.");
     sendMessageToContentScript({
       type: MessageType.ExtensionError,
       errorMessage:
         "Failed to replace Worker. Are you using another Twitch ad blocker?",
     });
   } else {
-    console.debug("[TTV LOL PRO] Worker replaced successfully.");
+    logger.log("Worker replaced successfully.");
   }
 }
 
@@ -110,11 +112,9 @@ broadcastChannel.addEventListener("message", event => {
       break;
     case MessageType.GetStoreStateResponse: // From Content
       if (pageState.state == null) {
-        console.log("[TTV LOL PRO] Received store state from content script.");
+        logger.log("Received store state from content script.");
       } else {
-        console.debug(
-          "[TTV LOL PRO] Received store state from content script."
-        );
+        logger.debug("Received store state from content script.");
       }
       const state = message.state;
       pageState.state = state;
