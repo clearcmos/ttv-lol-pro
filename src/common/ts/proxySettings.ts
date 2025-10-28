@@ -94,9 +94,12 @@ export function updateProxySettings(requestFilter?: ProxyRequestType[]) {
     console.log(
       `⚙️ Proxying requests through one of: ${proxies.toString() || "<empty>"}`
     );
-    store.state.chromiumProxyActive = true;
-    updateDnsResponses();
   });
+  // Keep below code out of the callback to ensure state is updated immediately.
+  // Otherwise, some requests (e.g. GQLToken) might not get proxied
+  // (full mode activation not calling `updateProxySettings`).
+  store.state.chromiumProxyActive = true;
+  updateDnsResponses();
 }
 
 function getProxyInfoStringFromUrls(urls: string[]): string {
@@ -117,6 +120,6 @@ function getProxyInfoStringFromUrls(urls: string[]): string {
 export function clearProxySettings() {
   chrome.proxy.settings.clear({ scope: "regular" }, function () {
     console.log("⚙️ Proxy settings cleared");
-    store.state.chromiumProxyActive = false;
   });
+  store.state.chromiumProxyActive = false;
 }
