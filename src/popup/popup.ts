@@ -1,5 +1,5 @@
 import Bowser from "bowser";
-import browser from "webextension-polyfill";
+import browser, { Storage } from "webextension-polyfill";
 import $ from "../common/ts/$";
 import { resolveAdIdentity } from "../common/ts/adLog";
 import { alpha2 } from "../common/ts/countryCodes";
@@ -11,6 +11,7 @@ import {
 } from "../common/ts/ipAddress";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
 import store from "../store";
+import type { State } from "../store/types";
 import type { AdLogEntry, StreamStatus } from "../types";
 
 type WarningBannerType = "noProxies";
@@ -34,6 +35,8 @@ const copyDebugInfoButtonDescriptionElement = $(
 ) as HTMLParagraphElement;
 //#endregion
 
+let previousStreamStatus: StreamStatus | null = null;
+
 if (store.readyState === "complete") main();
 else store.addEventListener("load", main);
 
@@ -53,7 +56,21 @@ async function main() {
   if (!channelName) return;
 
   setStreamStatusElement(channelName);
-  store.addEventListener("change", () => setStreamStatusElement(channelName));
+  store.addEventListener(
+    "change",
+    (changes: Record<string, Storage.StorageChange>) => {
+      const changedKeys = Object.keys(changes) as (keyof State)[];
+      const relevantKeys: (keyof State)[] = [
+        "normalProxies",
+        "optimizedProxies",
+        "optimizedProxiesEnabled",
+        "streamStatuses",
+        "whitelistedChannels",
+      ];
+      if (!changedKeys.some(key => relevantKeys.includes(key))) return;
+      setStreamStatusElement(channelName);
+    }
+  );
 }
 
 function setWarningBanner(type: WarningBannerType) {
@@ -78,6 +95,7 @@ function setStreamStatusElement(channelName: string) {
   } else {
     streamStatusElement.style.display = "none";
   }
+  previousStreamStatus = status;
 }
 
 function setProxyStatus(
@@ -108,10 +126,15 @@ function setProxyStatus(
     proxiedElement.classList.remove("success");
     proxiedElement.classList.remove("idle");
     proxiedElement.classList.add("error");
-    proxiedElement.title = "Did not proxy last request";
+    proxiedElement.title = "Not proxying";
   }
-  if (!proxiedElement.classList.contains("pulsing")) {
-    proxiedElement.classList.add("pulsing");
+  if (
+    previousStreamStatus &&
+    !compareStreamStatuses(previousStreamStatus, status)
+  ) {
+    if (!proxiedElement.classList.contains("pulsing")) {
+      proxiedElement.classList.add("pulsing");
+    }
   }
   // Channel name
   channelNameElement.textContent = channelNameLower;
@@ -135,6 +158,28 @@ function setProxyStatus(
     smallElement.textContent = message;
     infoContainerElement.appendChild(smallElement);
   }
+}
+
+/**
+ * Compare two stream statuses for equality.
+ * @param statusA
+ * @param statusB
+ * @returns True if the statuses are equal, false otherwise.
+ */
+function compareStreamStatuses(
+  statusA: StreamStatus,
+  statusB: StreamStatus
+): boolean {
+  if (statusA.proxied !== statusB.proxied) return false;
+  if (statusA.proxyHost !== statusB.proxyHost) return false;
+  if (statusA.proxyCountry !== statusB.proxyCountry) return false;
+  if (statusA.reason !== statusB.reason) return false;
+  if ((statusA.stats == null) !== (statusB.stats == null)) return false;
+  if (statusA.stats && statusB.stats) {
+    if (statusA.stats.proxied !== statusB.stats.proxied) return false;
+    if (statusA.stats.notProxied !== statusB.stats.notProxied) return false;
+  }
+  return true;
 }
 
 function getProxyStatusStatsMessage(

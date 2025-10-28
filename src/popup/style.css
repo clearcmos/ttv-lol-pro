@@ -107,6 +107,7 @@ a:visited:hover {
 
 #stream-status {
   display: none;
+  z-index: 0;
   flex-direction: column;
 }
 /* Proxy status */
@@ -127,7 +128,6 @@ a:visited:hover {
 /* Proxy status icon */
 #stream-status #proxied {
   display: flex;
-  z-index: 0;
   position: relative;
   grid-area: top-left;
   align-items: center;
@@ -135,7 +135,6 @@ a:visited:hover {
   cursor: help;
 }
 #stream-status #proxied #proxied-dot-shadow {
-  z-index: -1;
   position: absolute;
   top: 50%;
   left: 50%;
@@ -147,13 +146,14 @@ a:visited:hover {
   opacity: 0;
 }
 #stream-status #proxied #proxied-dot {
+  z-index: 1;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background-color: var(--background-secondary);
 }
 #stream-status #proxied.pulsing #proxied-dot-shadow {
-  animation: pulse-shadow 500ms ease-out;
+  animation: pulse-shadow 750ms ease-out;
 }
 #stream-status #proxied.success #proxied-dot-shadow,
 #stream-status #proxied.success #proxied-dot {
@@ -207,6 +207,7 @@ a:visited:hover {
 }
 /* Whitelist status */
 #whitelist-status {
+  z-index: -1; /* Fixes visual bug when proxied dot is pulsing */
   position: relative;
   height: 40px;
   border-top: 1px solid #3d4042;

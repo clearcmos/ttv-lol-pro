@@ -795,7 +795,7 @@ exportButtonElement.addEventListener("click", () => {
   };
   saveFile(
     "ttv-lol-pro_backup.json",
-    JSON.stringify(state),
+    JSON.stringify(state, null, 2),
     "application/json;charset=utf-8"
   );
 });

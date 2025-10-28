@@ -44,7 +44,7 @@ export function normalizeIpAddress(ip: string): string | null {
     }
     if (Address6.isValid(ip)) {
       const addr6 = new Address6(ip);
-      // Handle IPv4-mapped IPv6 (::ffff:192.0.2.128)
+      // Handle IPv4-mapped IPv6 addresses (e.g. ::ffff:192.0.2.128).
       if (addr6.is4()) {
         return addr6.to4().correctForm();
       }
