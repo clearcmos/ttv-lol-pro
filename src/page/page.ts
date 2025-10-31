@@ -16,7 +16,19 @@ import {
 import type { PageState } from "./types";
 
 const logger = new Logger("Page");
-logger.log("Page script running.");
+const performanceNavigationEntry =
+  performance.getEntriesByType("navigation")[0];
+if (performanceNavigationEntry) {
+  const injectionTime =
+    performance.now() - performanceNavigationEntry.startTime;
+  logger.log(
+    `Page script running (injected after ${(injectionTime / 1000).toFixed(
+      3
+    )}s).`
+  );
+} else {
+  logger.log("Page script running.");
+}
 
 let params;
 try {

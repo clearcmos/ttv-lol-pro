@@ -10,6 +10,8 @@ import {
   anonymizeIpAddresses,
 } from "../common/ts/ipAddress";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
+import isChromium from "../common/ts/isChromium";
+import { getProxyInfoFromUrl } from "../common/ts/proxyInfo";
 import store from "../store";
 import type { State } from "../store/types";
 import type { AdLogEntry, StreamStatus } from "../types";
@@ -27,6 +29,12 @@ const reasonElement = $("#reason") as HTMLParagraphElement;
 const infoContainerElement = $("#info-container") as HTMLDivElement;
 const whitelistStatusElement = $("#whitelist-status") as HTMLDivElement;
 const whitelistToggleElement = $("#whitelist-toggle") as HTMLInputElement;
+const copyProxyCredentialsButtonElement = $(
+  "#copy-proxy-credentials-button"
+) as HTMLButtonElement;
+const copyProxyCredentialsButtonDescriptionElement = $(
+  "#copy-proxy-credentials-button-description"
+) as HTMLParagraphElement;
 const copyDebugInfoButtonElement = $(
   "#copy-debug-info-button"
 ) as HTMLButtonElement;
@@ -46,6 +54,13 @@ async function main() {
     : store.state.normalProxies;
   if (proxies.length === 0) {
     setWarningBanner("noProxies");
+  }
+  const proxyInfoArray = proxies.map(getProxyInfoFromUrl);
+  if (
+    !isChromium ||
+    !proxyInfoArray.some(proxy => proxy.username || proxy.password)
+  ) {
+    copyProxyCredentialsButtonElement.parentElement!.remove();
   }
 
   const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -197,7 +212,11 @@ function getProxyStatusMessages(status: StreamStatus): string[] {
     messages.push(getProxyStatusStatsMessage(status.stats));
   }
   if (status.proxyHost) {
-    messages.push(`Proxy: ${anonymizeIpAddress(status.proxyHost)}`);
+    messages.push(
+      `Proxy: ${anonymizeIpAddress(status.proxyHost)}${
+        store.state.optimizedProxiesEnabled ? " (optimized)" : ""
+      }`
+    );
   }
   if (status.proxyCountry) {
     messages.push(
@@ -206,9 +225,6 @@ function getProxyStatusMessages(status: StreamStatus): string[] {
         status.proxyCountry
       }`
     );
-  }
-  if (store.state.optimizedProxiesEnabled) {
-    messages.push("Using optimized proxies");
   }
   return messages;
 }
@@ -239,6 +255,53 @@ whitelistToggleElement.addEventListener("change", e => {
   }
   whitelistStatusElement.setAttribute("data-whitelisted", `${isWhitelisted}`);
   browser.tabs.reload();
+});
+
+copyProxyCredentialsButtonElement.addEventListener("click", async e => {
+  try {
+    const proxies = store.state.optimizedProxiesEnabled
+      ? store.state.optimizedProxies
+      : store.state.normalProxies;
+    const proxyInfoArray = proxies.map(getProxyInfoFromUrl);
+    const firstProxyWithCredentials = proxyInfoArray.find(
+      proxy => proxy.username || proxy.password
+    );
+    if (!firstProxyWithCredentials) {
+      copyProxyCredentialsButtonDescriptionElement.textContent =
+        "No proxy credentials to copy.";
+      return;
+    }
+    const getCredentials = (): string | null => {
+      if (e.shiftKey) {
+        if (firstProxyWithCredentials.password) {
+          return firstProxyWithCredentials.password;
+        }
+        return null;
+      }
+      if (
+        firstProxyWithCredentials.username &&
+        firstProxyWithCredentials.password
+      ) {
+        return `${firstProxyWithCredentials.username}:${firstProxyWithCredentials.password}`;
+      } else if (firstProxyWithCredentials.username) {
+        return firstProxyWithCredentials.username;
+      } else if (firstProxyWithCredentials.password) {
+        return firstProxyWithCredentials.password;
+      }
+      return null;
+    };
+    const credentials = getCredentials();
+    if (!credentials) {
+      copyProxyCredentialsButtonDescriptionElement.textContent =
+        "No proxy credentials to copy.";
+      return;
+    }
+    await navigator.clipboard.writeText(credentials);
+    copyProxyCredentialsButtonDescriptionElement.textContent =
+      "Copied to clipboard!";
+  } catch (error) {
+    copyProxyCredentialsButtonDescriptionElement.textContent = `Failed to copy: ${error}`;
+  }
 });
 
 copyDebugInfoButtonElement.addEventListener("click", async e => {
@@ -362,5 +425,6 @@ async function getLatestAdLogEntry(
     }
   }
   if (shouldResolveAdIdentity) await resolveAdIdentity(entryIndex);
+  // TODO: Trim URLs to reduce debug info length & update docstring.
   return store.state.adLog[entryIndex];
 }

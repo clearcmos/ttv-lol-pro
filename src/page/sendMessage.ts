@@ -40,7 +40,11 @@ async function sendMessageAndWaitForResponse(
     });
     setTimeout(() => {
       broadcastChannel.removeEventListener("message", listener);
-      reject(new Error("Timed out waiting for message response."));
+      reject(
+        new Error(
+          `Timed out after ${responseTimeout}ms waiting for message response.`
+        )
+      );
     }, responseTimeout);
   });
 }
@@ -59,7 +63,7 @@ export function getSendMessageToContentScriptAndWaitForResponse(
     scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    responseTimeout: number = 7000
+    responseTimeout: number = 10000
   ) => {
     return sendMessageAndWaitForResponse(
       broadcastChannel,
@@ -88,7 +92,7 @@ export function getSendMessageToPageScriptAndWaitForResponse(
     scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    responseTimeout: number = 7000
+    responseTimeout: number = 10000
   ) => {
     return sendMessageAndWaitForResponse(
       broadcastChannel,
@@ -117,7 +121,7 @@ export function getSendMessageToWorkerScriptsAndWaitForResponse(
     scope: "page" | "worker",
     message: any,
     responseMessageType: MessageType,
-    responseTimeout: number = 7000
+    responseTimeout: number = 10000
   ) => {
     return sendMessageAndWaitForResponse(
       broadcastChannel,

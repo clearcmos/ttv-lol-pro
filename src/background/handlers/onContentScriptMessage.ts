@@ -7,9 +7,6 @@ import { MessageType, ProxyRequestType } from "../../types";
 type Timeout = string | number | NodeJS.Timeout | undefined;
 
 const timeoutMap: Map<ProxyRequestType, Timeout> = new Map();
-const fetchTimeoutMsOverride: Map<ProxyRequestType, number> = new Map([
-  [ProxyRequestType.Usher, 7000], // Account for slow page load.
-]);
 
 export default function onContentScriptMessage(
   message: any,
@@ -28,10 +25,7 @@ export default function onContentScriptMessage(
     }
 
     // Set new timeout for request type.
-    const fetchTimeoutMs = fetchTimeoutMsOverride.has(requestType)
-      ? fetchTimeoutMsOverride.get(requestType)!
-      : 3500; // Time for fetch to be called.
-    const replyTimeoutMs = Date.now() - message.timestamp; // Time for reply to be received.
+    const timeoutMs = 10000;
     timeoutMap.set(
       requestType,
       setTimeout(() => {
@@ -40,7 +34,7 @@ export default function onContentScriptMessage(
           updateProxySettings([...timeoutMap.keys()]);
         }
         console.log(
-          `🔴 Disabled full mode (request type: ${requestType}, timeout)`
+          `🔴 Disabled full mode (request type: ${requestType}, timeout: ${timeoutMs}ms)`
         );
         try {
           browser.tabs.sendMessage(tabId, {
@@ -54,16 +48,14 @@ export default function onContentScriptMessage(
             error
           );
         }
-      }, fetchTimeoutMs + replyTimeoutMs)
+      }, timeoutMs)
     );
     if (store.state.chromiumProxyActive) {
       updateProxySettings([...timeoutMap.keys()]);
     }
 
     console.log(
-      `🟢 Enabled full mode for ${
-        fetchTimeoutMs + replyTimeoutMs
-      }ms (request type: ${requestType})`
+      `🟢 Enabled full mode for ${timeoutMs}ms (request type: ${requestType})`
     );
     try {
       browser.tabs.sendMessage(tabId, {

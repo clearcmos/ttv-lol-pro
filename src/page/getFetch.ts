@@ -794,7 +794,7 @@ async function _flagRequest(
         MessageType.EnableFullModeResponse
       );
     } catch (error) {
-      logger.error("Failed to flag request:", error);
+      logger.error(`Failed to flag '${requestType}' request:`, error);
     }
     return request;
   } else {
@@ -826,7 +826,7 @@ async function _flagRequestCleanup(
       MessageType.DisableFullModeResponse
     );
   } catch (error) {
-    logger.error("Failed to cleanup flagged request:", error);
+    logger.error(`Failed to cleanup flagged '${requestType}' request:`, error);
   }
 }
 
@@ -849,13 +849,13 @@ async function flagRequestAndFetch(
     }
     let response!: Response;
     await mutex.runExclusive(async () => {
+      if (isLocked) {
+        logger.debug(`🔓 Done waiting for '${requestType}' (${request.url})`);
+      }
       logger.debug(`🔒 Locked '${requestType}' (${request.url})`);
       response = await doWork();
       logger.debug(`🔓 Unlocked '${requestType}' (${request.url})`);
     });
-    if (isLocked) {
-      logger.debug(`🔓 Done waiting for '${requestType}' (${request.url})`);
-    }
     return response;
   } else {
     return await doWork();
