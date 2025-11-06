@@ -10,14 +10,7 @@ declare module "m3u8-parser" {
     custom?: {};
     playlists?: {
       attributes: {
-        "FRAME-RATE": number;
-        VIDEO: string;
-        CODECS: string;
-        RESOLUTION: {
-          width: number;
-          height: number;
-        };
-        BANDWIDTH: number;
+        [key: string]: unknown;
       };
       uri: string;
       timeline: number;

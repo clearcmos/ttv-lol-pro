@@ -48,7 +48,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
             await fetchReplacementPlaybackAccessToken(
               pageState,
               cachedPlaybackTokenRequestHeaders,
-              cachedPlaybackTokenRequestBody
+              cachedPlaybackTokenRequestBody,
+              message.isFlaggedRequestOverride
             );
           pageState.sendMessageToWorkerScripts({
             type: MessageType.NewPlaybackAccessTokenResponse,
@@ -365,6 +366,14 @@ export default function getFetch(pageState: PageState): typeof fetch {
         request ??= new Request(videoWeaverUrl, {
           ...init,
         });
+        if (videoWeaverUrlsToNotProxy.has(videoWeaverUrl)) {
+          if (IS_DEVELOPMENT) {
+            logger.debug(
+              `Not flagging request to replacement Video Weaver URL '${videoWeaverUrl}'.`
+            );
+          }
+          break weaverReq;
+        }
       }
 
       // Flag first request to each Video Weaver URL.
@@ -535,8 +544,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
           channelName,
           assignedMap: assignedMap,
           replacementMap: null,
-          consecutiveMidrollResponses: 0,
-          consecutiveMidrollCooldown: 0,
+          consecutiveAdResponses: 0,
+          consecutiveAdCooldown: 0,
           deleted: false,
         });
       } else {
@@ -549,7 +558,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
         videoWeaverUrlsToNotProxy.delete(url); // Shouldn't be necessary, but just in case.
         if (isFrontpage || isWhitelisted) videoWeaverUrlsToNotProxy.add(url);
       });
-      const proxyCountryRegex = url.toLowerCase().includes("api/v2")
+      const proxyCountryRegex = url.toLowerCase().includes("/api/v2/")
         ? /"USER-COUNTRY",VALUE="([A-Z]+)"/i
         : /USER-COUNTRY="([A-Z]+)"/i;
       pageState.sendMessageToContentScript({
@@ -584,30 +593,77 @@ export default function getFetch(pageState: PageState): typeof fetch {
       if (responseBodyLower.includes("stitched-ad")) {
         await waitForStore(pageState);
 
-        if (responseBodyLower.includes("midroll")) {
-          logger.log("Midroll ad detected.");
-          manifest.consecutiveMidrollResponses += 1;
-          manifest.consecutiveMidrollCooldown = 15;
-          const shouldUpdateReplacementMap =
-            pageState.state?.optimizedProxiesEnabled === true &&
-            manifest.consecutiveMidrollResponses <= 2 && // Avoid infinite loop.
-            !videoWeaverUrlsToNotProxy.has(url);
-          if (shouldUpdateReplacementMap) {
-            const success = await updateVideoWeaverReplacementMap(
-              pageState,
-              cachedUsherRequestUrl,
-              manifest
-            );
-            if (success) cancelRequest();
-          }
-          manifest.replacementMap = null;
-        } else {
-          if (manifest.consecutiveMidrollCooldown > 0) {
-            // Avoid infinite loop if Twitch doesn't send an ad right away but sends one within a few requests.
-            manifest.consecutiveMidrollCooldown -= 1;
+        if (
+          pageState.state?.userExperienceMode !== "unlockBestQuality" &&
+          pageState.state?.optimizedProxiesEnabled === true &&
+          !videoWeaverUrlsToNotProxy.has(url) // Frontpage or whitelisted (this isn't the replaced URL).
+        ) {
+          const isPrerollAd = responseBodyLower.includes("preroll");
+          const isMidrollAd = responseBodyLower.includes("midroll");
+          if (isPrerollAd || isMidrollAd) {
+            if (isPrerollAd) logger.log("Preroll ad detected.");
+            else logger.log("Midroll ad detected.");
+            manifest.consecutiveAdResponses += 1;
+            manifest.consecutiveAdCooldown = 15;
+            if (manifest.consecutiveAdResponses <= 1) {
+              // Avoid infinite loop.
+              let shouldCancelRequest = false;
+              try {
+                const videoWeaverUrls = await updateVideoWeaverReplacementMap(
+                  pageState,
+                  cachedUsherRequestUrl,
+                  manifest,
+                  // Not using `!isFlaggedRequest` to avoid overriding user
+                  // passport settings. Temporarily disabling proxying is fine
+                  // though.
+                  isFlaggedRequest ? false : undefined
+                );
+                if (isFlaggedRequest) {
+                  // Current request has already been proxied, so we don't proxy
+                  // the replacement URLs in the hope that they will not contain
+                  // ads since the IP will be different.
+                  videoWeaverUrls.forEach(url =>
+                    videoWeaverUrlsToNotProxy.add(url)
+                  );
+                  logger.debug(
+                    "Added the following URLs to the do-not-proxy list:",
+                    videoWeaverUrls
+                  );
+                }
+                shouldCancelRequest = true;
+              } catch (error) {
+                logger.error(error);
+                pageState.sendMessageToContentScript({
+                  type: MessageType.ExtensionError,
+                  errorMessage: `Failed to replace ad: ${error}`,
+                });
+              }
+              if (shouldCancelRequest) cancelRequest();
+            } else if (manifest.consecutiveAdResponses === 2) {
+              logger.error("Exceeded maximum ad replacement attempts.");
+              pageState.sendMessageToContentScript({
+                type: MessageType.ExtensionError,
+                errorMessage:
+                  "Failed to replace ad: Exceeded maximum ad replacement attempts.",
+              });
+            }
+            if (manifest.replacementMap && !isFlaggedRequest) {
+              // Fall back to assigned URLs to avoid a real ad in favor of a
+              // possible purple screen.
+              logger.log(
+                "Falling back to assigned Video Weaver URLs to avoid real ad."
+              );
+              manifest.replacementMap = null;
+              cancelRequest();
+            }
           } else {
-            // No ad, clear attempts.
-            manifest.consecutiveMidrollResponses = 0;
+            if (manifest.consecutiveAdCooldown > 0) {
+              // Avoid infinite loop if Twitch doesn't send an ad right away but sends one within a few requests.
+              manifest.consecutiveAdCooldown -= 1;
+            } else {
+              // No ad, clear attempts.
+              manifest.consecutiveAdResponses = 0;
+            }
           }
         }
 
@@ -865,6 +921,7 @@ async function flagRequestAndFetch(
 }
 
 function cancelRequest(): never {
+  logger.debug("Cancelled request.");
   throw new Error();
 }
 
@@ -926,12 +983,14 @@ function getDefaultPlaybackAccessTokenRequest(
  * @param pageState
  * @param cachedPlaybackTokenRequestHeaders
  * @param cachedPlaybackTokenRequestBody
+ * @param isFlaggedRequestOverride
  * @returns
  */
 async function fetchReplacementPlaybackAccessToken(
   pageState: PageState,
   cachedPlaybackTokenRequestHeaders: Map<string, string> | null,
-  cachedPlaybackTokenRequestBody: string | null
+  cachedPlaybackTokenRequestBody: string | null,
+  isFlaggedRequestOverride?: boolean
 ): Promise<PlaybackAccessToken | null> {
   // Not using the cached request because we'd need to check if integrity requests are proxied.
   try {
@@ -940,9 +999,9 @@ async function fetchReplacementPlaybackAccessToken(
       pageState.state?.anonymousMode === true
     );
     if (request == null) return null;
-    const isFlaggedRequest = isRequestTypeProxied(
-      ProxyRequestType.GraphQLToken,
-      {
+    const isFlaggedRequest =
+      isFlaggedRequestOverride ??
+      isRequestTypeProxied(ProxyRequestType.GraphQLToken, {
         isChromium: pageState.isChromium,
         optimizedProxiesEnabled:
           pageState.state?.optimizedProxiesEnabled ?? true,
@@ -950,8 +1009,7 @@ async function fetchReplacementPlaybackAccessToken(
         customPassport: pageState.state?.customPassportEnabled
           ? pageState.state.customPassport
           : null,
-      }
-    );
+      });
     const response = isFlaggedRequest
       ? await flagRequestAndFetch(request, ProxyRequestType.GraphQL, pageState)
       : await NATIVE_FETCH(request);
@@ -992,12 +1050,14 @@ function getReplacementUsherUrl(
  * @param pageState
  * @param cachedUsherRequestUrl
  * @param playbackAccessToken
+ * @param isFlaggedRequestOverride
  * @returns
  */
 async function fetchReplacementUsherManifest(
   pageState: PageState,
   cachedUsherRequestUrl: string | null,
-  playbackAccessToken: PlaybackAccessToken
+  playbackAccessToken: PlaybackAccessToken,
+  isFlaggedRequestOverride?: boolean
 ): Promise<string | null> {
   if (cachedUsherRequestUrl == null) return null; // Very unlikely.
   try {
@@ -1007,14 +1067,17 @@ async function fetchReplacementUsherManifest(
     );
     if (newUsherUrl == null) return null;
     let request = new Request(newUsherUrl);
-    const isFlaggedRequest = isRequestTypeProxied(ProxyRequestType.Usher, {
-      isChromium: pageState.isChromium,
-      optimizedProxiesEnabled: pageState.state?.optimizedProxiesEnabled ?? true,
-      passportLevel: pageState.state?.passportLevel ?? 0,
-      customPassport: pageState.state?.customPassportEnabled
-        ? pageState.state.customPassport
-        : null,
-    });
+    const isFlaggedRequest =
+      isFlaggedRequestOverride ??
+      isRequestTypeProxied(ProxyRequestType.Usher, {
+        isChromium: pageState.isChromium,
+        optimizedProxiesEnabled:
+          pageState.state?.optimizedProxiesEnabled ?? true,
+        passportLevel: pageState.state?.passportLevel ?? 0,
+        customPassport: pageState.state?.customPassportEnabled
+          ? pageState.state.customPassport
+          : null,
+      });
     const response = isFlaggedRequest
       ? await flagRequestAndFetch(request, ProxyRequestType.Usher, pageState)
       : await NATIVE_FETCH(request);
@@ -1041,7 +1104,8 @@ function parseUsherManifest(manifest: string): Map<string, string> | null {
   }
   return new Map(
     parsedManifest.playlists.map(playlist => [
-      playlist.attributes.VIDEO,
+      (playlist.attributes["STABLE-VARIANT-ID"] ??
+        playlist.attributes["VIDEO"]) as string,
       playlist.uri,
     ])
   );
@@ -1052,13 +1116,15 @@ function parseUsherManifest(manifest: string): Map<string, string> | null {
  * @param pageState
  * @param cachedUsherRequestUrl
  * @param manifest
+ * @param isFlaggedRequestOverride
  * @returns
  */
 async function updateVideoWeaverReplacementMap(
   pageState: PageState,
   cachedUsherRequestUrl: string | null,
-  manifest: UsherManifest
-): Promise<boolean> {
+  manifest: UsherManifest,
+  isFlaggedRequestOverride?: boolean
+): Promise<string[]> {
   logger.log("Getting replacement Video Weaver URLs…");
   try {
     logger.log("(1/3) Getting new PlaybackAccessToken…");
@@ -1067,32 +1133,31 @@ async function updateVideoWeaverReplacementMap(
         "worker",
         {
           type: MessageType.NewPlaybackAccessToken,
+          isFlaggedRequestOverride,
         },
         MessageType.NewPlaybackAccessTokenResponse
       );
     const newPlaybackAccessToken: PlaybackAccessToken | undefined =
       newPlaybackAccessTokenResponse?.newPlaybackAccessToken;
     if (newPlaybackAccessToken == null) {
-      logger.error("Failed to get new PlaybackAccessToken.");
-      return false;
+      throw new Error("Failed to get new PlaybackAccessToken.");
     }
 
     logger.log("(2/3) Fetching new Usher manifest…");
     const newUsherManifest = await fetchReplacementUsherManifest(
       pageState,
       cachedUsherRequestUrl,
-      newPlaybackAccessToken
+      newPlaybackAccessToken,
+      isFlaggedRequestOverride
     );
     if (newUsherManifest == null) {
-      logger.error("Failed to fetch new Usher manifest.");
-      return false;
+      throw new Error("Failed to fetch new Usher manifest.");
     }
 
     logger.log("(3/3) Parsing new Usher manifest…");
     const replacementMap = parseUsherManifest(newUsherManifest);
     if (replacementMap == null || replacementMap.size === 0) {
-      logger.error("Failed to parse new Usher manifest.");
-      return false;
+      throw new Error("Failed to parse new Usher manifest.");
     }
 
     logger.log(
@@ -1106,7 +1171,7 @@ async function updateVideoWeaverReplacementMap(
     if (cachedUsherRequestUrl != null && videoWeaverUrls.length > 0) {
       const proxyCountryRegex = cachedUsherRequestUrl
         .toLowerCase()
-        .includes("api/v2")
+        .includes("/api/v2/")
         ? /"USER-COUNTRY",VALUE="([A-Z]+)"/i
         : /USER-COUNTRY="([A-Z]+)"/i;
       pageState.sendMessageToContentScript({
@@ -1118,10 +1183,9 @@ async function updateVideoWeaverReplacementMap(
       });
     }
 
-    return true;
+    return videoWeaverUrls;
   } catch (error) {
-    logger.error("Failed to get replacement Video Weaver URLs:", error);
-    return false;
+    throw new Error(`Failed to get replacement Video Weaver URLs: ${error}`);
   }
 }
 
