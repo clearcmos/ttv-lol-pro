@@ -4,9 +4,13 @@ import getHostFromUrl from "./getHostFromUrl";
 /**
  * Resolve ad identity information for a given ad log entry index.
  * @param index
+ * @param timeout
  * @returns True if the identity was successfully resolved or already exists, false otherwise.
  */
-export async function resolveAdIdentity(index: number): Promise<boolean> {
+export async function resolveAdIdentity(
+  index: number,
+  timeout?: number
+): Promise<boolean> {
   if (!(0 <= index && index < store.state.adLog.length)) return false;
   if (!store.state.adLog[index].parsedLine?.adLineItemId) return false;
   if (store.state.adLog[index].adIdentity) return true; // Already resolved.
@@ -41,6 +45,7 @@ export async function resolveAdIdentity(index: number): Promise<boolean> {
           },
         },
       ]),
+      signal: timeout ? AbortSignal.timeout(timeout) : undefined,
     });
     const json = await response.json();
     const adIdentity = json?.[0]?.["data"]?.["adIdentity"];
@@ -69,8 +74,6 @@ export async function sendAdLog(): Promise<boolean | null> {
       rawLine: undefined,
     }));
   if (filteredAdLog.length === 0) return null; // No log entries to send.
-
-  // TODO: Should some ad identities be resolved?
 
   let success = false;
   try {
