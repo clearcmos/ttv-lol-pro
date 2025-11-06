@@ -549,12 +549,14 @@ export default function getFetch(pageState: PageState): typeof fetch {
         videoWeaverUrlsToNotProxy.delete(url); // Shouldn't be necessary, but just in case.
         if (isFrontpage || isWhitelisted) videoWeaverUrlsToNotProxy.add(url);
       });
+      const proxyCountryRegex = url.toLowerCase().includes("api/v2")
+        ? /"USER-COUNTRY",VALUE="([A-Z]+)"/i
+        : /USER-COUNTRY="([A-Z]+)"/i;
       pageState.sendMessageToContentScript({
         type: MessageType.UsherResponse,
         channel: channelName,
         videoWeaverUrls,
-        proxyCountry:
-          /USER-COUNTRY="([A-Z]+)"/i.exec(responseBody)?.[1] || undefined,
+        proxyCountry: proxyCountryRegex.exec(responseBody)?.[1] || undefined,
       });
       //#endregion
     }
@@ -1102,12 +1104,17 @@ async function updateVideoWeaverReplacementMap(
     // Send replacement Video Weaver URLs to content script.
     const videoWeaverUrls = [...replacementMap.values()];
     if (cachedUsherRequestUrl != null && videoWeaverUrls.length > 0) {
+      const proxyCountryRegex = cachedUsherRequestUrl
+        .toLowerCase()
+        .includes("api/v2")
+        ? /"USER-COUNTRY",VALUE="([A-Z]+)"/i
+        : /USER-COUNTRY="([A-Z]+)"/i;
       pageState.sendMessageToContentScript({
         type: MessageType.UsherResponse,
         channel: findChannelFromUsherUrl(cachedUsherRequestUrl),
         videoWeaverUrls,
         proxyCountry:
-          /USER-COUNTRY="([A-Z]+)"/i.exec(newUsherManifest)?.[1] || undefined,
+          proxyCountryRegex.exec(newUsherManifest)?.[1] || undefined,
       });
     }
 
