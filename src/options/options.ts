@@ -232,7 +232,7 @@ function main() {
   adLogExportButtonElement.addEventListener("click", () => {
     saveFile(
       "ttv-lol-pro_ad-log.json",
-      JSON.stringify(store.state.adLog),
+      JSON.stringify(store.state.adLog, null, 2),
       "application/json;charset=utf-8"
     );
   });

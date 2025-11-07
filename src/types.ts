@@ -29,15 +29,19 @@ export interface AdLogEntry {
   parsedLine?: {
     adRollType: "PREROLL" | "MIDROLL";
     adUrl: string;
+    adUrlHighlight?: string;
     adClickTrackingUrl: string;
+    adClickTrackingUrlHighlight?: string;
     adLineItemId: string;
     adCommercialId?: string;
+    adDsaAdvertiserId?: string;
+    adDsaCampaignId?: string;
   };
   adIdentity?: {
     advertiserName: string;
     payerName: string;
     isIdentityVerified: boolean;
-  };
+  } | null;
 }
 
 export interface StreamStatus {

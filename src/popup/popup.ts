@@ -384,7 +384,11 @@ copyDebugInfoButtonElement.addEventListener("click", async e => {
             )}\n`,
             `- Ad attributes: ${
               latestAdLogEntry.parsedLine
-                ? JSON.stringify(latestAdLogEntry.parsedLine)
+                ? JSON.stringify({
+                    ...latestAdLogEntry.parsedLine,
+                    adUrl: undefined,
+                    adClickTrackingUrl: undefined,
+                  })
                 : "N/A"
             }\n`,
             `- Ad identity: ${
@@ -404,10 +408,10 @@ copyDebugInfoButtonElement.addEventListener("click", async e => {
 });
 
 /**
- * Get the latest ad log entry for a given channel name for display.
+ * Get the latest ad log entry for a channel, optionally resolving its ad identity.
  * @param channelNameLower
  * @param shouldResolveAdIdentity
- * @returns The latest ad log entry, or null if none exists.
+ * @returns The latest ad log entry, or null if none found.
  */
 async function getLatestAdLogEntry(
   channelNameLower: string | null,
@@ -426,51 +430,5 @@ async function getLatestAdLogEntry(
     }
   }
   if (shouldResolveAdIdentity) await resolveAdIdentity(entryIndex, 3000);
-  if (!store.state.adLog[entryIndex].parsedLine)
-    return store.state.adLog[entryIndex];
-  return {
-    ...store.state.adLog[entryIndex],
-    parsedLine: {
-      ...store.state.adLog[entryIndex].parsedLine!,
-      adUrl: extractDisplayUrl(store.state.adLog[entryIndex].parsedLine!.adUrl),
-      adClickTrackingUrl: extractDisplayUrl(
-        store.state.adLog[entryIndex].parsedLine!.adClickTrackingUrl
-      ),
-    },
-  };
-}
-
-/**
- * Extract a display-friendly URL from a raw manifest URL.
- * @param url
- * @returns
- */
-function extractDisplayUrl(url: string): string {
-  const MAX = 60;
-  if (!url) return "";
-  const parts = url.split("|").map(p => p.trim());
-  if (parts.length === 0) return "";
-  // Find a nested http(s) occurrence (case-insensitive).
-  const schemeRegex = /https?:\/\//gi;
-  let chosen: string | null = null;
-  for (const part of parts) {
-    const matches = [...part.matchAll(schemeRegex)];
-    if (matches.length >= 2) {
-      chosen = part.slice(matches[1].index!).trim();
-      break;
-    }
-  }
-  // Fallback: Shortest non-empty part.
-  if (!chosen) {
-    chosen = parts.reduce((a, b) => (a.length <= b.length ? a : b));
-  }
-  if (chosen.length <= MAX) return chosen;
-  try {
-    const parsed = new URL(chosen);
-    const hostPath = `${parsed.host}${parsed.pathname || ""}`;
-    if (hostPath.length <= MAX) return hostPath;
-    return `${hostPath.slice(0, MAX)}...`;
-  } catch {
-    return `${chosen.slice(0, MAX)}...`;
-  }
+  return store.state.adLog[entryIndex];
 }

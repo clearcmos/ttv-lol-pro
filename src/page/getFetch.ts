@@ -672,23 +672,32 @@ export default function getFetch(pageState: PageState): typeof fetch {
 
         if (pageState.state?.adLogEnabled === true) {
           const lines = responseBody.split("\n");
-          const line = lines.find(
-            line =>
-              line.toLowerCase().includes("preroll") ||
-              line.toLowerCase().includes("midroll")
-          );
-          if (line) {
+          const adLines = lines.filter(line => {
+            const lineLower = line.toLowerCase();
+            return (
+              lineLower.includes("preroll") || lineLower.includes("midroll")
+            );
+          });
+          for (const adLine of adLines) {
             const parser = new m3u8Parser.Parser();
-            parser.push(line);
+            parser.push(adLine);
             parser.end();
             const dateRange = parser.manifest.dateRanges?.[0];
             const parsedLine = dateRange
               ? {
                   adRollType: dateRange.xTvTwitchAdRollType,
                   adUrl: dateRange.xTvTwitchAdUrl,
+                  adUrlHighlight: getHighlightOfAdUrl(
+                    dateRange.xTvTwitchAdUrl as string | undefined
+                  ),
                   adClickTrackingUrl: dateRange.xTvTwitchAdClickTrackingUrl,
+                  adClickTrackingUrlHighlight: getHighlightOfAdUrl(
+                    dateRange.xTvTwitchAdClickTrackingUrl as string | undefined
+                  ),
                   adLineItemId: dateRange.xTvTwitchAdLineItemId,
                   adCommercialId: dateRange.xTvTwitchAdCommercialId,
+                  adDsaAdvertiserId: dateRange.xTvTwitchAdDsaAdvertiserId,
+                  adDsaCampaignId: dateRange.xTvTwitchAdDsaCampaignId,
                 }
               : undefined;
             pageState.sendMessageToContentScript({
@@ -696,7 +705,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
               timestamp: Date.now(),
               channelName: manifest.channelName,
               videoWeaverUrl: url,
-              rawLine: line,
+              rawLine: adLine,
               parsedLine,
             });
           }
@@ -930,6 +939,34 @@ async function flagRequestAndFetch(
 function cancelRequest(): never {
   logger.debug("Cancelled request.");
   throw new Error();
+}
+
+/**
+ * Get the highlight of a raw manifest ad URL.
+ * @param url
+ * @returns
+ */
+function getHighlightOfAdUrl(url: string | undefined): string | undefined {
+  if (!url) return url;
+  const parts = url.split("|").map(p => p.trim());
+  if (parts.length === 0) return "";
+  // Find a nested http(s) occurrence (case-insensitive).
+  const schemeRegex = /https?:\/\//gi;
+  let chosen: string | null = null;
+  for (const part of parts) {
+    const matches = [...part.matchAll(schemeRegex)];
+    if (matches.length >= 2) {
+      chosen = part.slice(matches[1].index!).trim();
+      break;
+    }
+  }
+  // Fallback: Shortest non-empty part.
+  if (!chosen) {
+    chosen = parts.reduce((a, b) => (a.length <= b.length ? a : b));
+  }
+  const maxLength = 60;
+  if (chosen.length <= maxLength) return chosen;
+  return `${chosen.slice(0, maxLength - 1)}…`;
 }
 
 //#region Video Weaver URL replacement

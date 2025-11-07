@@ -15,6 +15,35 @@ export async function resolveAdIdentity(
   if (!store.state.adLog[index].parsedLine?.adLineItemId) return false;
   if (store.state.adLog[index].adIdentity) return true; // Already resolved.
 
+  // Try to find existing identity in other log entries first.
+  if (
+    store.state.adLog[index].parsedLine.adDsaAdvertiserId != null &&
+    store.state.adLog[index].parsedLine.adDsaCampaignId != null
+  ) {
+    const entry = store.state.adLog.find(
+      e =>
+        e.parsedLine?.adDsaAdvertiserId ===
+          store.state.adLog[index].parsedLine?.adDsaAdvertiserId &&
+        e.parsedLine?.adDsaCampaignId ===
+          store.state.adLog[index].parsedLine?.adDsaCampaignId &&
+        e.adIdentity !== undefined
+    );
+    if (entry) {
+      store.state.adLog[index].adIdentity = entry.adIdentity;
+      return true;
+    }
+  }
+  const entry = store.state.adLog.find(
+    e =>
+      e.parsedLine?.adLineItemId ===
+        store.state.adLog[index].parsedLine?.adLineItemId &&
+      e.adIdentity !== undefined
+  );
+  if (entry) {
+    store.state.adLog[index].adIdentity = entry.adIdentity;
+    return true;
+  }
+
   try {
     const response = await fetch("https://gql.twitch.tv/gql", {
       method: "POST",
@@ -30,8 +59,10 @@ export async function resolveAdIdentity(
           variables: {
             adInput: {
               adIDValue: store.state.adLog[index].parsedLine.adLineItemId,
-              advertiserIDNS: "",
-              campaignIDNS: "",
+              advertiserIDNS:
+                store.state.adLog[index].parsedLine.adDsaAdvertiserId ?? "",
+              campaignIDNS:
+                store.state.adLog[index].parsedLine.adDsaCampaignId ?? "",
               selectionSignals: {},
             },
             clientInput: {},
@@ -56,6 +87,9 @@ export async function resolveAdIdentity(
         isIdentityVerified: adIdentity["isIdentityVerified"],
       };
       return true;
+    } else {
+      store.state.adLog[index].adIdentity = null;
+      return false;
     }
   } catch {}
   return false;
@@ -81,6 +115,7 @@ export async function sendAdLog(): Promise<boolean | null> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Ad-Log-Version": "2",
       },
       body: JSON.stringify(filteredAdLog),
     });

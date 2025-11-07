@@ -204,7 +204,7 @@ async function updateStreamStatus(
     proxied: true,
     proxyHost: proxy,
     proxyCountry: streamStatus?.proxyCountry,
-    reason: "",
+    reason: streamStatus?.reason ?? "",
     stats,
   });
 }

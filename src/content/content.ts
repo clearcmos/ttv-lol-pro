@@ -1,6 +1,7 @@
 import pageScriptURL from "url:../page/page.ts";
 import workerScriptURL from "url:../page/worker.ts";
 import browser, { Storage } from "webextension-polyfill";
+import { resolveAdIdentity } from "../common/ts/adLog";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
 import generateRandomString from "../common/ts/generateRandomString";
 import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
@@ -9,7 +10,7 @@ import Logger from "../common/ts/Logger";
 import { getStreamStatus, setStreamStatus } from "../common/ts/streamStatus";
 import store from "../store";
 import type { State } from "../store/types";
-import { AdLogEntry, MessageType } from "../types";
+import { MessageType } from "../types";
 
 const logger = new Logger("Content");
 logger.log("Content script running.");
@@ -108,7 +109,7 @@ function onBackgroundMessage(message: any): undefined {
   }
 }
 
-function onPageMessage(event: MessageEvent) {
+async function onPageMessage(event: MessageEvent) {
   if (!event.data || event.data.type !== MessageType.ContentScriptMessage) {
     return;
   }
@@ -198,25 +199,40 @@ function onPageMessage(event: MessageEvent) {
   }
   // ---
   else if (message.type === MessageType.UpdateAdLog) {
-    const isDuplicate = store.state.adLog.some(
-      entry =>
-        entry.videoWeaverUrl === message.videoWeaverUrl &&
-        message.timestamp - entry.timestamp < 1000 * 30 // 30 seconds
-    );
+    const isDuplicate = store.state.adLog.some(entry => {
+      if (entry.channelName !== message.channelName) return false;
+      if (message.timestamp - entry.timestamp >= 60000) {
+        return false; // Entry is too old to be a duplicate (more than 1 minute).
+      }
+      if (entry.parsedLine != null && message.parsedLine != null) {
+        if (
+          entry.parsedLine.adCommercialId != null &&
+          message.parsedLine.adCommercialId != null
+        ) {
+          return (
+            entry.parsedLine.adCommercialId ===
+            message.parsedLine.adCommercialId
+          );
+        }
+        return (
+          entry.parsedLine.adLineItemId === message.parsedLine.adLineItemId
+        );
+      }
+      return entry.videoWeaverUrl === message.videoWeaverUrl;
+    });
     if (isDuplicate) return;
-    const entry: AdLogEntry = {
+    store.state.adLog.push({
       timestamp: message.timestamp,
       channelName: message.channelName,
       videoWeaverUrl: message.videoWeaverUrl,
       rawLine: message.rawLine,
       parsedLine: message.parsedLine,
-    };
-    store.state.adLog.push(entry);
-    if (store.state.adLog.length > 100) {
-      // Keep only the last 100 entries.
-      store.state.adLog.splice(0, store.state.adLog.length - 100);
-    }
-    logger.log(`Ad log updated (${store.state.adLog.length} entries):`, entry);
+    });
+    await resolveAdIdentity(store.state.adLog.length - 1, 3000);
+    logger.log(
+      `Ad log updated (${store.state.adLog.length} entries):`,
+      store.state.adLog[store.state.adLog.length - 1]
+    );
   }
   // ---
   else if (message.type === MessageType.ClearStats) {
