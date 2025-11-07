@@ -106,8 +106,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
           const mutex = pageState.requestTypeMutexes[requestType];
           if (mutex.isLocked()) {
             mutex.release();
+            logger.debug(`🔓 Unlocked '${requestType}' (timeout)`);
           }
-          logger.debug(`🔓 Unlocked '${requestType}' (timeout)`);
         }
         break;
     }
@@ -117,11 +117,19 @@ export default function getFetch(pageState: PageState): typeof fetch {
   // if (IS_DEVELOPMENT && pageState.scope === "worker") {
   //   setTimeout(async () => {
   //     await waitForStore(pageState);
-  //     updateVideoWeaverReplacementMap(
-  //       pageState,
-  //       cachedUsherRequestUrl,
-  //       usherManifests[usherManifests.length - 1]
-  //     );
+  //     try {
+  //       const videoWeaverUrls = await updateVideoWeaverReplacementMap(
+  //         pageState,
+  //         cachedUsherRequestUrl,
+  //         usherManifests[usherManifests.length - 1]
+  //       );
+  //       logger.log(
+  //         "Test Video Weaver URL replacement successful:",
+  //         videoWeaverUrls
+  //       );
+  //     } catch (error) {
+  //       logger.error("Test Video Weaver URL replacement failed:", error);
+  //     }
   //   }, 30000);
   // }
 
@@ -587,7 +595,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
         break weaverRes;
       }
 
-      // Check if response contains midroll ad.
+      // Check if response contains an ad.
       responseBody ??= await readResponseBody();
       const responseBodyLower = responseBody.toLowerCase();
       if (responseBodyLower.includes("stitched-ad")) {
@@ -596,7 +604,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
         if (
           pageState.state?.userExperienceMode !== "unlockBestQuality" &&
           pageState.state?.optimizedProxiesEnabled === true &&
-          !videoWeaverUrlsToNotProxy.has(url) // Frontpage or whitelisted (this isn't the replaced URL).
+          !videoWeaverUrlsToNotProxy.has(url) // `url` (assigned) != `videoWeaverUrl` (replacement).
         ) {
           const isPrerollAd = responseBodyLower.includes("preroll");
           const isMidrollAd = responseBodyLower.includes("midroll");
@@ -605,8 +613,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
             else logger.log("Midroll ad detected.");
             manifest.consecutiveAdResponses += 1;
             manifest.consecutiveAdCooldown = 15;
+            // Avoid infinite loop by limiting ad replacement attempts.
             if (manifest.consecutiveAdResponses <= 1) {
-              // Avoid infinite loop.
               let shouldCancelRequest = false;
               try {
                 const videoWeaverUrls = await updateVideoWeaverReplacementMap(
@@ -620,8 +628,8 @@ export default function getFetch(pageState: PageState): typeof fetch {
                 );
                 if (isFlaggedRequest) {
                   // Current request has already been proxied, so we don't proxy
-                  // the replacement URLs in the hope that they will not contain
-                  // ads since the IP will be different.
+                  // the replacement URLs in the hope that they might not
+                  // contain ads since the new Usher's "USER-IP" is different.
                   videoWeaverUrls.forEach(url =>
                     videoWeaverUrlsToNotProxy.add(url)
                   );
@@ -647,18 +655,13 @@ export default function getFetch(pageState: PageState): typeof fetch {
                   "Failed to replace ad: Exceeded maximum ad replacement attempts.",
               });
             }
-            if (manifest.replacementMap && !isFlaggedRequest) {
-              // Fall back to assigned URLs to avoid a real ad in favor of a
-              // possible purple screen.
-              logger.log(
-                "Falling back to assigned Video Weaver URLs to avoid real ad."
-              );
-              manifest.replacementMap = null;
-              cancelRequest();
-            }
+            // Any request reaching here has either not been replaced (error)
+            // or has already exceeded the maximum replacement attempts.
+            // Not resetting `manifest.replacementMap` here to avoid player freezes.
           } else {
             if (manifest.consecutiveAdCooldown > 0) {
-              // Avoid infinite loop if Twitch doesn't send an ad right away but sends one within a few requests.
+              // Avoid infinite loop if Twitch doesn't send an ad right away but
+              // sends one within a few requests.
               manifest.consecutiveAdCooldown -= 1;
             } else {
               // No ad, clear attempts.
@@ -853,6 +856,10 @@ async function _flagRequest(
       );
     } catch (error) {
       logger.error(`Failed to flag '${requestType}' request:`, error);
+      pageState.sendMessageToContentScript({
+        type: MessageType.ExtensionError,
+        errorMessage: `Failed to flag '${requestType}' request: ${error}`,
+      });
     }
     return request;
   } else {
@@ -1104,8 +1111,8 @@ function parseUsherManifest(manifest: string): Map<string, string> | null {
   }
   return new Map(
     parsedManifest.playlists.map(playlist => [
-      (playlist.attributes["STABLE-VARIANT-ID"] ??
-        playlist.attributes["VIDEO"]) as string,
+      (playlist.attributes["STABLE-VARIANT-ID"] ?? // V2 API
+        playlist.attributes["VIDEO"]) as string, // V1 API
       playlist.uri,
     ])
   );
