@@ -106,4 +106,4 @@ This fork:
 
 > ℹ️ If you want to revert the changes made to the Registry, an `unallow` folder is included in the `allowlist.zip` file. You can run the REG file in that folder to revert the policy changes.
 
-[latest version]: https://github.com/younesaassila/ttv-lol-pro/releases/tag/v1.9.3
+[latest version]: https://github.com/younesaassila/ttv-lol-pro/releases/tag/v1.9.4
