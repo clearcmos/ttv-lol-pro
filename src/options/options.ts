@@ -53,7 +53,6 @@ const resetButtonElement = $("#reset-button") as HTMLButtonElement;
 //#endregion
 
 const DEFAULT_STATE_KEYS = Object.freeze(Object.keys(getDefaultState()));
-const DEFAULT_SERVERS = Object.freeze(getDefaultState().servers);
 const DEFAULT_LIST_OPTIONS = Object.freeze({
   getAlreadyExistsAlertMessage: text => `'${text}' is already in the list`,
   getItemPlaceholder: text => `Leave empty to remove '${text}' from the list`,
@@ -114,16 +113,22 @@ function main() {
   });
   // Server list
   const isServerUrlValid = (url: string): AllowedResult => {
-    if (DEFAULT_SERVERS.includes(url))
-      return [false, `'${url}' is a default server URL`];
-    let Url: URL | undefined;
+    let Url: URL | undefined = undefined;
     try {
       Url = new URL(url);
     } catch {}
     if (!Url) return [false, `'${url}' is not a valid URL`];
+    const v2ProxyServers = [
+      ".ttvlolpro.perfprod.com",
+      "chrome.api.cdn-perfprod.com",
+      "chromium.api.cdn-perfprod.com",
+      "firefox.api.cdn-perfprod.com",
+    ];
     if (
-      Url.protocol.endsWith(".ttvlolpro.perfprod.com:") ||
-      Url.hostname.endsWith(".ttvlolpro.perfprod.com")
+      v2ProxyServers.some(
+        server =>
+          Url.protocol.endsWith(`${server}:`) || Url.hostname.endsWith(server)
+      )
     ) {
       return [false, `'${url}' is a proxy server for TTV LOL PRO v2`];
     }

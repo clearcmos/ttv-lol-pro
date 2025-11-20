@@ -143,7 +143,8 @@ small {
 }
 
 .store-list > li > input {
-  min-width: 400px;
+  width: 100%;
+  max-width: 400px;
   margin-bottom: 0.25rem;
 }
 

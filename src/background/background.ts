@@ -32,6 +32,7 @@ browser.webRequest.onBeforeRequest.addListener(
   {
     urls: [
       "https://usher.ttvnw.net/api/channel/hls/*",
+      "https://usher.ttvnw.net/api/v2/channel/hls/*",
       "https://usher.ttvnw.net/vod/*",
     ],
   },
