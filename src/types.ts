@@ -94,7 +94,6 @@ export const enum MessageType {
   UsherResponse = "TLP_UsherResponse",
   NewPlaybackAccessToken = "TLP_NewPlaybackAccessToken",
   NewPlaybackAccessTokenResponse = "TLP_NewPlaybackAccessTokenResponse",
-  ChannelSubStatusChange = "TLP_ChannelSubStatusChange",
   UpdateAdLog = "TLP_UpdateAdLog",
   ClearStats = "TLP_ClearStats",
   ExtensionError = "TLP_ExtensionError",

@@ -20,7 +20,9 @@ const PROXY_TYPE_MAP: Readonly<Record<ProxyType, string>> = Object.freeze({
   socks4: "SOCKS4",
 });
 
-export function updateProxySettings(requestFilter?: ProxyRequestType[]) {
+export async function updateProxySettings(
+  requestFilter?: ProxyRequestType[]
+): Promise<boolean> {
   const { optimizedProxiesEnabled, passportLevel } = store.state;
 
   const proxies = optimizedProxiesEnabled
@@ -91,16 +93,24 @@ export function updateProxySettings(requestFilter?: ProxyRequestType[]) {
     },
   };
 
-  chrome.proxy.settings.set({ value: config, scope: "regular" }, function () {
-    console.log(
-      `⚙️ Proxying requests through one of: ${proxies.toString() || "<empty>"}`
-    );
+  const applied = await new Promise<boolean>(resolve => {
+    chrome.proxy.settings.set({ value: config, scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.error(`Failed to update proxy settings: ${error.message}`);
+        resolve(false);
+        return;
+      }
+      console.log(
+        `Proxying requests through one of: ${proxies.toString() || "<empty>"}`
+      );
+      resolve(true);
+    });
   });
-  // Keep below code out of the callback to ensure state is updated immediately.
-  // Otherwise, some requests (e.g. GQLToken) might not get proxied
-  // (full mode activation not calling `updateProxySettings`).
+  if (!applied) return false;
   store.state.chromiumProxyActive = true;
-  updateDnsResponses();
+  void updateDnsResponses();
+  return true;
 }
 
 function getProxyInfoStringFromUrls(urls: string[]): string {
@@ -118,10 +128,20 @@ function getProxyInfoStringFromUrls(urls: string[]): string {
   ].join("; ");
 }
 
-export function clearProxySettings() {
-  chrome.proxy.settings.clear({ scope: "regular" }, function () {
-    console.log("⚙️ Proxy settings cleared");
+export async function clearProxySettings(): Promise<boolean> {
+  const cleared = await new Promise<boolean>(resolve => {
+    chrome.proxy.settings.clear({ scope: "regular" }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        console.error(`Failed to clear proxy settings: ${error.message}`);
+        resolve(false);
+        return;
+      }
+      console.log("Proxy settings cleared");
+      resolve(true);
+    });
   });
+  if (!cleared) return false;
   store.state.chromiumProxyActive = false;
 
   if (
@@ -130,4 +150,5 @@ export function clearProxySettings() {
   ) {
     onStartupStoreCleanup();
   }
+  return true;
 }

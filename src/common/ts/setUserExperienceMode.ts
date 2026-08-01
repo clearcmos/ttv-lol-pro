@@ -34,8 +34,6 @@ export default function setUserExperienceMode(
         adLogEnabled: store.state.adLogEnabled,
         anonymousMode: store.state.anonymousMode,
         customPassport: store.state.customPassport,
-        whitelistChannelSubscriptions:
-          store.state.whitelistChannelSubscriptions,
       };
       store.state.adLogEnabled = false;
       store.state.anonymousMode = false;
@@ -48,7 +46,6 @@ export default function setUserExperienceMode(
         graphQLAll: false,
         twitchWebpage: false,
       };
-      store.state.whitelistChannelSubscriptions = false;
       break;
     case "expertMode":
       store.state.customPassportEnabled = true;

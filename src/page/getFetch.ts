@@ -55,6 +55,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
           pageState.sendMessageToWorkerScripts({
             type: MessageType.NewPlaybackAccessTokenResponse,
             newPlaybackAccessToken,
+            requestId: message.requestId,
           });
           break;
       }
@@ -398,15 +399,22 @@ export default function getFetch(pageState: PageState): typeof fetch {
         break usherReq;
       }
 
-      const shouldFlagRequest = isRequestTypeProxied(ProxyRequestType.Usher, {
-        isChromium: pageState.isChromium,
-        optimizedProxiesEnabled:
-          pageState.state?.optimizedProxiesEnabled ?? true,
-        passportLevel: pageState.state?.passportLevel ?? 0,
-        customPassport: pageState.state?.customPassportEnabled
-          ? pageState.state.customPassport
-          : null,
-      });
+      // Inspect the initial stream directly. Escalate to the proxy replacement
+      // path only after the Video Weaver response confirms an ad.
+      const shouldUseFastStart =
+        pageState.state?.userExperienceMode === "blockAds" &&
+        pageState.state.optimizedProxiesEnabled === true;
+      const shouldFlagRequest =
+        !shouldUseFastStart &&
+        isRequestTypeProxied(ProxyRequestType.Usher, {
+          isChromium: pageState.isChromium,
+          optimizedProxiesEnabled:
+            pageState.state?.optimizedProxiesEnabled ?? true,
+          passportLevel: pageState.state?.passportLevel ?? 0,
+          customPassport: pageState.state?.customPassportEnabled
+            ? pageState.state.customPassport
+            : null,
+        });
       const shouldOverrideRequest = pageState.state?.anonymousMode === true;
       if (shouldOverrideRequest) {
         logger.log("Overriding Usher request…");
@@ -476,9 +484,14 @@ export default function getFetch(pageState: PageState): typeof fetch {
 
       // Flag first request to each Video Weaver URL.
       await waitForStore(pageState);
-      const shouldFlagRequest = isRequestTypeProxied(
-        ProxyRequestType.VideoWeaver,
-        {
+      const isReplacementRequest = videoWeaverUrl !== url;
+      const shouldUseFastStart =
+        pageState.state?.userExperienceMode === "blockAds" &&
+        pageState.state.optimizedProxiesEnabled === true &&
+        !isReplacementRequest;
+      const shouldFlagRequest =
+        !shouldUseFastStart &&
+        isRequestTypeProxied(ProxyRequestType.VideoWeaver, {
           isChromium: pageState.isChromium,
           optimizedProxiesEnabled:
             pageState.state?.optimizedProxiesEnabled ?? true,
@@ -486,8 +499,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
           customPassport: pageState.state?.customPassportEnabled
             ? pageState.state.customPassport
             : null,
-        }
-      );
+        });
       const proxiedCount = videoWeaverUrlsProxiedCount.get(videoWeaverUrl) ?? 0;
       if (shouldFlagRequest && proxiedCount < 1) {
         videoWeaverUrlsProxiedCount.set(videoWeaverUrl, proxiedCount + 1);
@@ -597,72 +609,6 @@ export default function getFetch(pageState: PageState): typeof fetch {
     }
 
     //#region Responses
-
-    // Twitch GraphQL responses.
-    graphqlRes: if (
-      host != null &&
-      twitchGqlHostRegex.test(host) &&
-      response.status < 400
-    ) {
-      await waitForStore(pageState);
-
-      //#region Automatically whitelist channels you're subscribed to.
-      if (!pageState.state?.whitelistChannelSubscriptions) break graphqlRes;
-      responseBody ??= await readResponseBody();
-      // Preliminary check to avoid parsing the response body if possible.
-      if (
-        !responseBody.includes('"UserSelfConnection"') ||
-        !responseBody.includes('"subscriptionBenefit"') ||
-        !responseBody.includes('"login"')
-      ) {
-        break graphqlRes;
-      }
-      try {
-        let channelName: string;
-        let isSubscribed: boolean;
-        const body = JSON.parse(responseBody);
-        if (Array.isArray(body)) {
-          const match = body.find(
-            (obj: any) =>
-              obj.data &&
-              obj.data.user &&
-              obj.data.user.login != null &&
-              obj.data.user.self &&
-              "subscriptionBenefit" in obj.data.user.self
-          );
-          if (match == null) break graphqlRes;
-          channelName = match.data.user.login;
-          isSubscribed = match.data.user.self.subscriptionBenefit != null;
-        } else {
-          const isMatch =
-            body.data &&
-            body.data.user &&
-            body.data.user.login != null &&
-            body.data.user.self &&
-            "subscriptionBenefit" in body.data.user.self;
-          if (!isMatch) break graphqlRes;
-          channelName = body.data.user.login;
-          isSubscribed = body.data.user.self.subscriptionBenefit != null;
-        }
-        if (!channelName) break graphqlRes;
-        const isLivestream = !/^\d+$/.test(channelName); // VODs have numeric IDs.
-        if (!isLivestream) break graphqlRes;
-        const wasSubscribed = wasChannelSubscriber(channelName, pageState);
-        const hasSubStatusChanged =
-          (wasSubscribed && !isSubscribed) || (!wasSubscribed && isSubscribed);
-        if (hasSubStatusChanged) {
-          pageState.sendMessageToContentScript({
-            type: MessageType.ChannelSubStatusChange,
-            channelNameLower: channelName.toLowerCase(),
-            wasSubscribed,
-            isSubscribed,
-          });
-        }
-      } catch (error) {
-        logger.error("Failed to parse GraphQL response:", error);
-      }
-      //#endregion
-    }
 
     // Twitch Usher responses.
     usherRes: if (
@@ -979,19 +925,6 @@ function isChannelWhitelisted(
   );
 }
 
-function wasChannelSubscriber(
-  channelName: string | null | undefined,
-  pageState: PageState
-): boolean {
-  if (!channelName) return false;
-  const channelNameLower = channelName.toLowerCase();
-  return (
-    pageState.state?.activeChannelSubscriptions.some(
-      channel => channel.toLowerCase() === channelNameLower
-    ) ?? false
-  );
-}
-
 /**
  * Partitions an array or map into two maps based on a predicate.
  * The keys of the returned maps correspond to the original indices or keys.
@@ -1035,19 +968,21 @@ async function _flagRequest(
   request: Request,
   requestType: ProxyRequestType,
   pageState: PageState
-): Promise<Request> {
+): Promise<{ request: Request; fullModeRequestId?: string }> {
   if (pageState.isChromium) {
-    if (!pageState.state?.optimizedProxiesEnabled) return request;
+    if (!pageState.state?.optimizedProxiesEnabled) return { request };
     try {
-      await pageState.sendMessageToContentScriptAndWaitForResponse(
-        pageState.scope,
-        {
-          type: MessageType.EnableFullMode,
-          timestamp: Date.now(),
-          requestType,
-        },
-        MessageType.EnableFullModeResponse
-      );
+      const response =
+        await pageState.sendMessageToContentScriptAndWaitForResponse(
+          pageState.scope,
+          {
+            type: MessageType.EnableFullMode,
+            timestamp: Date.now(),
+            requestType,
+          },
+          MessageType.EnableFullModeResponse
+        );
+      return { request, fullModeRequestId: response.requestId };
     } catch (error) {
       logger.error(`Failed to flag '${requestType}' request:`, error);
       pageState.sendMessageToContentScript({
@@ -1055,22 +990,25 @@ async function _flagRequest(
         errorMessage: `Failed to flag '${requestType}' request: ${error}`,
       });
     }
-    return request;
+    return { request };
   } else {
     // Change the Accept header to include the flag.
     const headersMap = getHeadersMap(request);
     const accept = getHeaderFromMap(headersMap, "Accept");
-    if (accept != null && accept.includes(acceptFlag)) return request;
+    if (accept != null && accept.includes(acceptFlag)) return { request };
     setHeaderToMap(headersMap, "Accept", `${accept || ""}${acceptFlag}`);
-    return new Request(request, {
-      headers: Object.fromEntries(headersMap),
-    });
+    return {
+      request: new Request(request, {
+        headers: Object.fromEntries(headersMap),
+      }),
+    };
   }
 }
 
 async function _flagRequestCleanup(
   requestType: ProxyRequestType,
-  pageState: PageState
+  pageState: PageState,
+  fullModeRequestId?: string
 ) {
   if (!pageState.isChromium) return;
   if (!pageState.state?.optimizedProxiesEnabled) return;
@@ -1081,6 +1019,7 @@ async function _flagRequestCleanup(
         type: MessageType.DisableFullMode,
         timestamp: Date.now(),
         requestType,
+        fullModeRequestId,
       },
       MessageType.DisableFullModeResponse
     );
@@ -1095,10 +1034,16 @@ async function flagRequestAndFetch(
   pageState: PageState
 ): Promise<Response> {
   const doWork = async () => {
-    const flaggedRequest = await _flagRequest(request, requestType, pageState);
-    const response = await NATIVE_FETCH(flaggedRequest);
-    await _flagRequestCleanup(requestType, pageState);
-    return response;
+    const { request: flaggedRequest, fullModeRequestId } = await _flagRequest(
+      request,
+      requestType,
+      pageState
+    );
+    try {
+      return await NATIVE_FETCH(flaggedRequest);
+    } finally {
+      await _flagRequestCleanup(requestType, pageState, fullModeRequestId);
+    }
   };
   if (pageState.isChromium && pageState.state?.optimizedProxiesEnabled) {
     const mutex = pageState.requestTypeMutexes[requestType];

@@ -32,7 +32,7 @@ export default function getDefaultState() {
     userExperienceMode: "blockAds",
     userExperienceOverridenOptions: {},
     videoWeaverUrlsByChannel: {},
-    whitelistChannelSubscriptions: true,
+    whitelistChannelSubscriptions: false,
     whitelistedChannels: [],
   };
   return state;
