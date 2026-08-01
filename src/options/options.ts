@@ -99,9 +99,6 @@ const passportLevelProxyUsageWwwElement = $(
 const whitelistedChannelsListElement = $(
   "#whitelisted-channels-list"
 ) as HTMLUListElement;
-const whitelistSubscriptionsCheckboxElement = $(
-  "#whitelist-subscriptions-checkbox"
-) as HTMLInputElement;
 // Proxies
 const optimizedProxiesInputElement = $("#optimized") as HTMLInputElement;
 const optimizedProxiesListElement = $(
@@ -193,14 +190,6 @@ function main() {
     store.state.anonymousMode = anonymousModeCheckboxElement.checked;
   });
   // Whitelisted channels
-  whitelistSubscriptionsCheckboxElement.addEventListener("change", () => {
-    const { checked } = whitelistSubscriptionsCheckboxElement;
-    store.state.whitelistChannelSubscriptions = checked;
-    if (!checked) {
-      // Clear active channel subscriptions to free up storage space.
-      store.state.activeChannelSubscriptions = [];
-    }
-  });
   // Proxies
   const onProxyModeChange = () => {
     store.state.optimizedProxiesEnabled = optimizedProxiesInputElement.checked;
@@ -313,8 +302,6 @@ function updateUI() {
       return [true];
     },
   });
-  whitelistSubscriptionsCheckboxElement.checked =
-    store.state.whitelistChannelSubscriptions;
   // Proxies
   if (store.state.optimizedProxiesEnabled)
     optimizedProxiesInputElement.checked = true;
@@ -798,7 +785,6 @@ exportButtonElement.addEventListener("click", () => {
     passportLevel: store.state.passportLevel,
     userExperienceMode: store.state.userExperienceMode,
     userExperienceOverridenOptions: store.state.userExperienceOverridenOptions,
-    whitelistChannelSubscriptions: store.state.whitelistChannelSubscriptions,
     whitelistedChannels: store.state.whitelistedChannels,
   };
   saveFile(

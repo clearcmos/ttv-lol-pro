@@ -20,26 +20,35 @@ async function sendMessageAndWaitForResponse(
   responseMessageType: MessageType,
   responseTimeout: number
 ): Promise<any> {
+  const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const cleanup = () => {
+      broadcastChannel.removeEventListener("message", listener);
+      clearTimeout(timeout);
+    };
     const listener = (event: MessageEvent) => {
       if (!event.data || event.data.type !== responseType) return;
       const { message } = event.data;
       if (!message) return;
-      if (message.type === responseMessageType) {
-        broadcastChannel.removeEventListener("message", listener);
-        resolve(message);
-      }
+      if (
+        message.type !== responseMessageType ||
+        message.requestId !== requestId
+      )
+        return;
+      cleanup();
+      resolve(message);
     };
 
     broadcastChannel.addEventListener("message", listener);
     broadcastChannel.postMessage({
       type,
-      message,
+      message: { ...message, requestId },
       responseType,
       responseMessageType,
     });
-    setTimeout(() => {
-      broadcastChannel.removeEventListener("message", listener);
+    timeout = setTimeout(() => {
+      cleanup();
       reject(
         new Error(
           `Timed out after ${responseTimeout}ms waiting for message response (broadcast channel: ${broadcastChannel.name}).`

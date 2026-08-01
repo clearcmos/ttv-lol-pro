@@ -1,3 +1,11 @@
+> [!NOTE]
+> This is a personal fork of
+> [younesaassila/ttv-lol-pro](https://github.com/younesaassila/ttv-lol-pro)
+> based on v2.6.2. It starts streams directly, escalates to the proxy replacement
+> path after detecting an ad, waits for Chromium proxy changes to
+> apply, correlates asynchronous extension messages by request ID, and keeps
+> channel subscriptions out of the ad-bypass whitelist.
+
 <h1 align="center">
   <img alt="Icon" src="src/common/images/brand/icon.png" height="100" width="100" />
   <br />

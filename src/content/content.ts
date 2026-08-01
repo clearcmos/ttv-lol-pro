@@ -3,7 +3,6 @@ import browser, { Storage } from "webextension-polyfill";
 import { resolveAdIdentity } from "../common/ts/adLog";
 import findChannelFromTwitchTvUrl from "../common/ts/findChannelFromTwitchTvUrl";
 import generateRandomString from "../common/ts/generateRandomString";
-import isChannelWhitelisted from "../common/ts/isChannelWhitelisted";
 import isChromium from "../common/ts/isChromium";
 import Logger from "../common/ts/Logger";
 import { getStreamStatus, setStreamStatus } from "../common/ts/streamStatus";
@@ -167,6 +166,7 @@ async function onPageMessage(event: MessageEvent) {
         message: {
           type: MessageType.GetStoreStateResponse,
           state,
+          requestId: message.requestId,
         },
       });
     }
@@ -176,51 +176,9 @@ async function onPageMessage(event: MessageEvent) {
         message: {
           type: MessageType.GetStoreStateResponse,
           state,
+          requestId: message.requestId,
         },
       });
-    }
-  }
-  // ---
-  else if (message.type === MessageType.ChannelSubStatusChange) {
-    const { channelNameLower, wasSubscribed, isSubscribed } = message;
-    const isWhitelisted = isChannelWhitelisted(channelNameLower);
-    logger.log("Channel subscription status changed:", {
-      channelNameLower,
-      wasSubscribed,
-      isSubscribed,
-      isWhitelisted,
-    });
-    const currentChannelNameLower = findChannelFromTwitchTvUrl(
-      location.href
-    )?.toLowerCase();
-    if (store.state.whitelistChannelSubscriptions && channelNameLower != null) {
-      if (!wasSubscribed && isSubscribed) {
-        store.state.activeChannelSubscriptions.push(channelNameLower);
-        // Add to whitelist.
-        if (!isWhitelisted) {
-          store.state.whitelistedChannels.push(channelNameLower);
-          logger.log(`Added '${channelNameLower}' to whitelist.`);
-          if (channelNameLower === currentChannelNameLower) {
-            location.reload();
-          }
-        }
-      } else if (wasSubscribed && !isSubscribed) {
-        store.state.activeChannelSubscriptions =
-          store.state.activeChannelSubscriptions.filter(
-            channel => channel.toLowerCase() !== channelNameLower
-          );
-        // Remove from whitelist.
-        if (isWhitelisted) {
-          store.state.whitelistedChannels =
-            store.state.whitelistedChannels.filter(
-              channel => channel.toLowerCase() !== channelNameLower
-            );
-          logger.log(`Removed '${channelNameLower}' from whitelist.`);
-          if (channelNameLower === currentChannelNameLower) {
-            location.reload();
-          }
-        }
-      }
     }
   }
   // ---

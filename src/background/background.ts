@@ -1,6 +1,7 @@
 import browser from "webextension-polyfill";
 import isChromium from "../common/ts/isChromium";
 import checkForOpenedTwitchTabs from "./handlers/checkForOpenedTwitchTabs";
+import disableSubscriptionAutoWhitelist from "./handlers/disableSubscriptionAutoWhitelist";
 import onAuthRequired from "./handlers/onAuthRequired";
 import onBeforeSendHeaders from "./handlers/onBeforeSendHeaders";
 import onContentScriptMessage from "./handlers/onContentScriptMessage";
@@ -14,6 +15,10 @@ import onTabReplaced from "./handlers/onTabReplaced";
 import onTabUpdated from "./handlers/onTabUpdated";
 
 console.info("🚀 Background script loaded.");
+
+// Channel subscriptions do not guarantee ad-free viewing. Keep the whitelist
+// limited to channels the user selected explicitly.
+disableSubscriptionAutoWhitelist();
 
 // Cleanup old data in the store on update & open setup on install/update.
 browser.runtime.onInstalled.addListener(onInstalled);
