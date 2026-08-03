@@ -29,8 +29,6 @@ export interface UsherManifest {
   channelName: string | null;
   assignedMap: Map<string, string>; // E.g. "720p60" -> "https://video-weaver.fra02.hls.ttvnw.net/v1/playlist/..."
   replacementMap: Map<string, string> | null; // Same as above, but with new URLs.
-  consecutiveAdResponses: number; // Used to avoid infinite loops.
-  consecutiveAdCooldown: number; // Used to avoid infinite loops.
   deleted: boolean; // Deletion flag for cleanup.
 }
 

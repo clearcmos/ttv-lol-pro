@@ -12,6 +12,7 @@
 ## Build and validation
 
 - Install locked dependencies with `npm ci`.
+- Run focused regression tests with `npm test`.
 - Run formatting checks with `npm run lint`.
 - Run TypeScript checks with `npm run type-check`.
 - Build Chromium with `npm run build:chromium`.
@@ -29,6 +30,8 @@
 ## Fork Changes
 
 - `src/page/getFetch.ts`: use direct initial Usher and assigned Video Weaver requests in `blockAds` mode, then proxy replacement requests only after an ad is detected.
+- `src/page/adReplacementCoordinator.ts`, `src/page/getFetch.ts`, and `src/background/background.ts`: share one replacement workflow per channel, retry transient failures once, back off repeated failures, cancel every detected ad response, and report sanitized HTTP and Chromium proxy errors.
 - `src/page/sendMessage.ts`, `src/content/content.ts`, and `src/page/getFetch.ts`: correlate asynchronous responses by unique request ID and clear response timers immediately.
 - `src/common/ts/proxySettings.ts` and `src/background/handlers/onContentScriptMessage.ts`: await PAC application, serialize proxy updates, track concurrent full-mode requests independently, and always clean up proxy state after failed fetches.
 - `src/background/handlers/disableSubscriptionAutoWhitelist.ts`, `src/page/getFetch.ts`, and the options UI: remove automatic subscription whitelisting, migrate its recorded channels out of the manual whitelist, and leave only explicit user-selected channel exceptions.
+- `src/manifest.chromium.json`: point the extension homepage at the `clearcmos` fork and retain the existing Chromium extension ID for local builds.

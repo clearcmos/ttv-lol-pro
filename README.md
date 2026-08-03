@@ -4,7 +4,10 @@
 > based on v2.6.2. It starts streams directly, escalates to the proxy replacement
 > path after detecting an ad, waits for Chromium proxy changes to
 > apply, correlates asynchronous extension messages by request ID, and keeps
-> channel subscriptions out of the ad-bypass whitelist.
+> channel subscriptions out of the ad-bypass whitelist. Chromium builds retain
+> the existing extension ID so the fork can reuse its saved local settings. Ad
+> replacement attempts are serialized per channel, retried once, and fail
+> closed by blocking detected ad playlists.
 
 <h1 align="center">
   <img alt="Icon" src="https://raw.githubusercontent.com/younesaassila/ttv-lol-pro/refs/heads/v2/src/common/images/brand/icon.png" height="100" width="100" />

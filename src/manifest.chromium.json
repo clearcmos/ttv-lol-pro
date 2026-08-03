@@ -2,8 +2,9 @@
   "manifest_version": 3,
   "name": "TTV LOL PRO",
   "description": "TTV LOL PRO removes most livestream ads from Twitch.",
-  "homepage_url": "https://github.com/younesaassila/ttv-lol-pro",
+  "homepage_url": "https://github.com/clearcmos/ttv-lol-pro",
   "version": "2.6.2",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmr1KUWJKE43bnEczfJB8ibv64L25BLiBM/KOTIW4xpEOaEljF11fE86NXhVqqCxuczdU7JwKFYNzlCLm3/rwBAX2tIlHBwH7W/7H5QPN3g/oq4zTlggde43wGXIPoLaIvWT1iAiXYIqIbuZFavgWsoG0AoeJQ6ffwMlnC7K18uGUVB9oCSK3iDOLHgII64lEsXJIy/9Czo1Tdx1Nh2qc/3bTmfW23ziwSmqjXpU95T0vj/DImavUR7Jsv+3iuoI6Jb9Y7ygnvZ6MGzEQ3+2YWsfGY6tY1x+4iCpAN31lP/RXW87/hxfOGkEwBDyy2Iypp/UXQ8xnlx8a5DS5KHX0KQIDAQAB",
   "background": {
     "service_worker": "background/background.ts",
     "type": "module"

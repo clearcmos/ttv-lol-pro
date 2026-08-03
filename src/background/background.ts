@@ -52,6 +52,11 @@ browser.webRequest.onResponseStarted.addListener(onResponseStarted, {
 });
 
 if (isChromium) {
+  chrome.proxy.onProxyError.addListener(details => {
+    const behavior = details.fatal ? "request aborted" : "direct fallback";
+    console.error(`Proxy error (${behavior}): ${details.error}`);
+  });
+
   // Check if there are any opened Twitch tabs on startup.
   checkForOpenedTwitchTabs();
 
