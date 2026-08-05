@@ -762,7 +762,7 @@ export default function getFetch(pageState: PageState): typeof fetch {
         if (responseIncludesAd) {
           const replacementKey =
             manifest.channelName ?? getHostFromUrl(url) ?? "unknown";
-          await handleDetectedAd({
+          const replacement = await handleDetectedAd({
             coordinator: adReplacementCoordinator,
             key: replacementKey,
             replace: () =>
@@ -809,6 +809,94 @@ export default function getFetch(pageState: PageState): typeof fetch {
             },
             cancelRequest,
           });
+
+          const videoQuality = [...manifest.assignedMap].find(
+            ([, assignedUrl]) => assignedUrl === url
+          )?.[0];
+          const replacementVideoWeaverUrl =
+            (videoQuality != null
+              ? replacement.replacementMap.get(videoQuality)
+              : undefined) ?? [...replacement.replacementMap.values()][0];
+          if (replacementVideoWeaverUrl == null) {
+            const error = new Error(
+              "No replacement Video Weaver URL is available for the detected ad."
+            );
+            logger.error(error);
+            pageState.sendMessageToContentScript({
+              type: MessageType.ExtensionError,
+              errorMessage: `Failed to replace ad: ${error.message}`,
+            });
+            updateAdLogForDetectedResponse();
+            return cancelRequest();
+          }
+
+          const replacementRequest = new Request(replacementVideoWeaverUrl, {
+            ...init,
+            headers: Object.fromEntries(headersMap),
+          });
+          const shouldProxyReplacement =
+            !isFlaggedRequest &&
+            !videoWeaverUrlsToNotProxy.has(replacementVideoWeaverUrl) &&
+            isRequestTypeProxied(ProxyRequestType.VideoWeaver, {
+              isChromium: pageState.isChromium,
+              optimizedProxiesEnabled:
+                pageState.state?.optimizedProxiesEnabled ?? true,
+              passportLevel: pageState.state?.passportLevel ?? 0,
+              customPassport: pageState.state?.customPassportEnabled
+                ? pageState.state.customPassport
+                : null,
+            });
+          const previousProxiedCount =
+            videoWeaverUrlsProxiedCount.get(replacementVideoWeaverUrl) ?? 0;
+          try {
+            if (shouldProxyReplacement) {
+              videoWeaverUrlsProxiedCount.set(
+                replacementVideoWeaverUrl,
+                previousProxiedCount + 1
+              );
+            }
+            const replacementResponse = shouldProxyReplacement
+              ? await flagRequestAndFetch(
+                  replacementRequest,
+                  ProxyRequestType.VideoWeaver,
+                  pageState
+                )
+              : await NATIVE_FETCH(replacementRequest);
+            if (replacementResponse.status >= 400) {
+              throw new Error(
+                `Replacement Video Weaver request returned HTTP ${replacementResponse.status}.`
+              );
+            }
+            const replacementResponseBody = await replacementResponse
+              .clone()
+              .text();
+            if (replacementResponseBody.toLowerCase().includes("stitched-ad")) {
+              throw new Error(
+                "Replacement Video Weaver response still contains an ad."
+              );
+            }
+            response = replacementResponse;
+            responseBody = replacementResponseBody;
+            logger.log("Returning replacement Video Weaver response directly.");
+          } catch (error) {
+            if (shouldProxyReplacement) {
+              if (previousProxiedCount === 0) {
+                videoWeaverUrlsProxiedCount.delete(replacementVideoWeaverUrl);
+              } else {
+                videoWeaverUrlsProxiedCount.set(
+                  replacementVideoWeaverUrl,
+                  previousProxiedCount
+                );
+              }
+            }
+            logger.error(error);
+            pageState.sendMessageToContentScript({
+              type: MessageType.ExtensionError,
+              errorMessage: `Failed to replace ad: ${getErrorMessage(error)}`,
+            });
+            updateAdLogForDetectedResponse();
+            return cancelRequest();
+          }
         }
       }
       //#endregion

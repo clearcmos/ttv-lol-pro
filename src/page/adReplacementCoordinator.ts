@@ -79,19 +79,20 @@ interface HandleDetectedAdOptions<T> {
 
 export async function handleDetectedAd<T>(
   options: HandleDetectedAdOptions<T>
-): Promise<never> {
+): Promise<T> {
   try {
     const replacement = await options.coordinator.run(
       options.key,
       options.replace
     );
     options.onReplacement(replacement);
+    return replacement;
   } catch (error) {
     if (!(error instanceof AdReplacementBackoffError)) {
       try {
         options.onFailure(error);
       } catch {}
     }
+    return options.cancelRequest();
   }
-  return options.cancelRequest();
 }

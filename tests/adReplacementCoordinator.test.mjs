@@ -116,3 +116,23 @@ test("cancels an ad response when replacement fails", async () => {
   );
   assert.match(failure.message, /replacement failed/);
 });
+
+test("returns a successful replacement without cancelling the response", async () => {
+  const coordinator = createCoordinator();
+  let cancelled = false;
+
+  const replacement = await handleDetectedAd({
+    coordinator,
+    key: "danxpath",
+    replace: async () => "replacement",
+    onReplacement: () => {},
+    onFailure: error => assert.fail(`replacement failed: ${error}`),
+    cancelRequest: () => {
+      cancelled = true;
+      throw new Error("cancelled");
+    },
+  });
+
+  assert.equal(replacement, "replacement");
+  assert.equal(cancelled, false);
+});
