@@ -8,7 +8,10 @@
 > the existing extension ID so the fork can reuse its saved local settings. Ad
 > replacement attempts are serialized per channel, retried once, and return a
 > clean replacement playlist directly instead of waiting for a player retry.
-> Failed replacements remain blocked.
+> While the assigned stream starts, the fork warms a direct `popout` session
+> and uses its matching playlist first when it is ad-free. The proxy remains
+> the fallback when that alternate session is unavailable or still contains an
+> ad. Failed replacements remain blocked.
 
 <h1 align="center">
   <img alt="Icon" src="https://raw.githubusercontent.com/younesaassila/ttv-lol-pro/refs/heads/v2/src/common/images/brand/icon.png" height="100" width="100" />

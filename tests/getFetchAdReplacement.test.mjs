@@ -34,15 +34,21 @@ registerHooks({
 
 const assignedPlaylistUrl =
   "https://video-weaver.fra02.hls.ttvnw.net/v1/playlist/assigned.m3u8";
-const replacementPlaylistUrl =
-  "https://video-weaver.fra02.hls.ttvnw.net/v1/playlist/replacement.m3u8";
+const directReplacementPlaylistUrl =
+  "https://video-weaver.fra02.hls.ttvnw.net/v1/playlist/direct-replacement.m3u8";
+const proxiedReplacementPlaylistUrl =
+  "https://video-weaver.fra02.hls.ttvnw.net/v1/playlist/proxied-replacement.m3u8";
 const assignedUsherManifest = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,FRAME-RATE=60
 ${assignedPlaylistUrl}
 `;
-const replacementUsherManifest = `#EXTM3U
+const directReplacementUsherManifest = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,FRAME-RATE=60
-${replacementPlaylistUrl}
+${directReplacementPlaylistUrl}
+`;
+const proxiedReplacementUsherManifest = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,FRAME-RATE=60
+${proxiedReplacementPlaylistUrl}
 `;
 const adPlaylist = `#EXTM3U
 #EXT-X-DATERANGE:ID="stitched-ad-1",CLASS="twitch-stitched-ad"
@@ -53,6 +59,7 @@ const cleanPlaylist = `#EXTM3U
 #EXTINF:2.0,live
 https://example.invalid/live-segment.ts
 `;
+let directReplacementPlaylist = cleanPlaylist;
 
 class FakeBroadcastChannel {
   constructor(name) {
@@ -70,17 +77,22 @@ const nativeFetch = async input => {
   fetchCalls.push(url.toString());
 
   if (url.hostname === "usher.ttvnw.net") {
-    return new Response(
-      url.searchParams.get("sig") === "replacement-signature"
-        ? replacementUsherManifest
-        : assignedUsherManifest,
-      { status: 200 }
-    );
+    const signature = url.searchParams.get("sig");
+    const body =
+      signature === "direct-replacement-signature"
+        ? directReplacementUsherManifest
+        : signature === "proxied-replacement-signature"
+          ? proxiedReplacementUsherManifest
+          : assignedUsherManifest;
+    return new Response(body, { status: 200 });
   }
   if (url.toString() === assignedPlaylistUrl) {
     return new Response(adPlaylist, { status: 200 });
   }
-  if (url.toString() === replacementPlaylistUrl) {
+  if (url.toString() === directReplacementPlaylistUrl) {
+    return new Response(directReplacementPlaylist, { status: 200 });
+  }
+  if (url.toString() === proxiedReplacementPlaylistUrl) {
     return new Response(cleanPlaylist, { status: 200 });
   }
   throw new Error(`Unexpected fetch: ${url.origin}${url.pathname}`);
@@ -100,7 +112,11 @@ function createMutex() {
   };
 }
 
-function createPageState(stateOverrides = {}, proxyMessages = []) {
+function createPageState(
+  stateOverrides = {},
+  proxyMessages = [],
+  playbackAccessTokenMessages = []
+) {
   const mutex = createMutex();
   return {
     params: { broadcastChannelName: "get-fetch-ad-replacement-test" },
@@ -124,20 +140,66 @@ function createPageState(stateOverrides = {}, proxyMessages = []) {
       return { requestId: "proxy-request" };
     },
     sendMessageToPageScript: () => {},
-    sendMessageToPageScriptAndWaitForResponse: async () => ({
-      newPlaybackAccessToken: {
-        value: "replacement-token",
-        signature: "replacement-signature",
-      },
-    }),
+    sendMessageToPageScriptAndWaitForResponse: async (_, message) => {
+      playbackAccessTokenMessages.push(message);
+      return {
+        newPlaybackAccessToken: {
+          value: "replacement-token",
+          signature:
+            message.playerType === "popout"
+              ? "direct-replacement-signature"
+              : "proxied-replacement-signature",
+        },
+      };
+    },
     sendMessageToWorkerScripts: () => {},
     sendMessageToWorkerScriptsAndWaitForResponse: async () => ({}),
   };
 }
 
-test("returns a clean replacement playlist without waiting for a player retry", async () => {
+test("warms and returns a direct popout replacement before using the proxy", async () => {
   fetchCalls.length = 0;
-  const wrappedFetch = getFetch(createPageState());
+  directReplacementPlaylist = cleanPlaylist;
+  const proxyMessages = [];
+  const playbackAccessTokenMessages = [];
+  const wrappedFetch = getFetch(
+    createPageState({}, proxyMessages, playbackAccessTokenMessages)
+  );
+  const usherUrl =
+    "https://usher.ttvnw.net/api/channel/hls/testchannel.m3u8?sig=assigned-signature&token=assigned-token";
+
+  await wrappedFetch(usherUrl);
+  assert.deepEqual(playbackAccessTokenMessages, [
+    {
+      type: "TLP_NewPlaybackAccessToken",
+      channelName: "testchannel",
+      playerType: "popout",
+      isFlaggedRequestOverride: false,
+    },
+  ]);
+  const response = await wrappedFetch(assignedPlaylistUrl);
+
+  assert.equal(await response.text(), cleanPlaylist);
+  assert.equal(proxyMessages.length, 0);
+  assert.equal(fetchCalls.filter(url => url === assignedPlaylistUrl).length, 1);
+  assert.equal(
+    fetchCalls.filter(url => url === directReplacementPlaylistUrl).length,
+    1
+  );
+  assert.equal(
+    fetchCalls.filter(url => url === proxiedReplacementPlaylistUrl).length,
+    0
+  );
+});
+
+test("falls back to the proxy when the warmed popout playlist still has an ad", async () => {
+  fetchCalls.length = 0;
+  directReplacementPlaylist = adPlaylist;
+  const proxyMessages = [];
+  const playbackAccessTokenMessages = [];
+  const wrappedFetch = getFetch(
+    createPageState({}, proxyMessages, playbackAccessTokenMessages)
+  );
   const usherUrl =
     "https://usher.ttvnw.net/api/channel/hls/testchannel.m3u8?sig=assigned-signature&token=assigned-token";
 
@@ -145,11 +207,17 @@ test("returns a clean replacement playlist without waiting for a player retry", 
   const response = await wrappedFetch(assignedPlaylistUrl);
 
   assert.equal(await response.text(), cleanPlaylist);
-  assert.equal(fetchCalls.filter(url => url === assignedPlaylistUrl).length, 1);
   assert.equal(
-    fetchCalls.filter(url => url === replacementPlaylistUrl).length,
+    fetchCalls.filter(url => url === directReplacementPlaylistUrl).length,
     1
   );
+  assert.equal(
+    fetchCalls.filter(url => url === proxiedReplacementPlaylistUrl).length,
+    1
+  );
+  assert.ok(proxyMessages.length > 0);
+  assert.equal(playbackAccessTokenMessages.length, 2);
+  directReplacementPlaylist = cleanPlaylist;
 });
 
 test("respects an expert-mode setting that disables Video Weaver proxying", async () => {

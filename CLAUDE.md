@@ -29,8 +29,8 @@
 
 ## Fork Changes
 
-- `src/page/getFetch.ts`: use direct initial Usher and assigned Video Weaver requests in `blockAds` mode, then proxy replacement requests only after an ad is detected.
-- `src/page/adReplacementCoordinator.ts`, `src/page/getFetch.ts`, and `src/background/background.ts`: share one replacement workflow per channel, retry transient failures once, back off repeated failures, return clean replacement playlists directly, cancel failed replacements, and report sanitized HTTP and Chromium proxy errors.
+- `src/page/getFetch.ts`: use direct initial Usher and assigned Video Weaver requests in `blockAds` mode, warm a direct `popout` Usher map while the assigned stream starts, use its matching playlist first when clean, and retain the proxy replacement path as fallback.
+- `src/page/adReplacementCoordinator.ts`, `src/page/getFetch.ts`, and `src/background/background.ts`: share one proxy replacement workflow per channel, retry transient failures once, expire failure backoff before Twitch's next playlist retry, return clean replacement playlists directly, cancel failed replacements, and report sanitized HTTP and Chromium proxy errors.
 - `src/page/sendMessage.ts`, `src/content/content.ts`, and `src/page/getFetch.ts`: correlate asynchronous responses by unique request ID and clear response timers immediately.
 - `src/common/ts/proxySettings.ts` and `src/background/handlers/onContentScriptMessage.ts`: await PAC application, serialize proxy updates, track concurrent full-mode requests independently, and always clean up proxy state after failed fetches.
 - `src/background/handlers/disableSubscriptionAutoWhitelist.ts`, `src/page/getFetch.ts`, and the options UI: remove automatic subscription whitelisting, migrate its recorded channels out of the manual whitelist, and leave only explicit user-selected channel exceptions.
