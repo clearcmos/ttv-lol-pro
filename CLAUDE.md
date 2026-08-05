@@ -19,6 +19,10 @@
 - Build Firefox with `npm run build:firefox`.
 - Exercise playback changes in an isolated browser profile with and without the extension. Compare time to first video progress and inspect extension logs for proxy activation and cleanup.
 
+## Publishing
+
+- After completing and validating a requested repository change, commit it and push it directly to `origin/main` unless the user explicitly says not to publish or requests another branch or pull request.
+
 ## Code style
 
 - Follow the existing TypeScript and Prettier configuration.
